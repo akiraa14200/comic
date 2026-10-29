@@ -1,0 +1,55 @@
+name: COMICKO Android Build
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout COMICKO
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Verify integrated source trees are present
+        shell: bash
+        run: |
+          if [ ! -d music ] || [ ! -d manga ]; then
+            echo "::error::Source trees are not yet committed. Expected the supplied Velune project under music/ and Yōkai project under manga/."
+            echo "The repository scaffold is in place, but the integrated app and APK cannot be built until those sources are uploaded and integration changes are made."
+            exit 1
+          fi
+
+      - name: Build music project (baseline validation)
+        if: ${{ hashFiles('music/gradlew') != '' }}
+        working-directory: music
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Build manga project (baseline validation)
+        if: ${{ hashFiles('manga/gradlew') != '' }}
+        working-directory: manga
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Upload baseline APKs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: comicko-baseline-apks
+          path: |
+            music/app/build/outputs/apk/debug/*.apk
+            manga/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: ignore
