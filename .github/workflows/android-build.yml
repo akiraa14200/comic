@@ -204,6 +204,7 @@ jobs:
           # Reuse Kotlin plugins already supplied by the manga buildSrc classpath.
           sed -i 's/kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }/kotlin-jvm = { id = "org.jetbrains.kotlin.jvm" }/' spike/gradle/music.versions.toml
           sed -i 's/kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }/kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization" }/' spike/gradle/music.versions.toml
+          sed -i 's/compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }/compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose" }/' spike/gradle/music.versions.toml
           mkdir -p spike/musicapp
           cp -a "$MUSIC_ROOT/app"/. spike/musicapp/
           for module in innertube kugou lrclib lastfm betterlyrics kizzy simpmusic canvas; do
