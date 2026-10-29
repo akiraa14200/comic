@@ -229,6 +229,11 @@ jobs:
               for p in (root / module).rglob("*.gradle.kts"):
                   t = p.read_text(errors="replace")
                   t = re.sub(r'\blibs\.', 'music.', t)
+                  # Kotlin 2.4 removed the old context-receivers compiler switch.
+                  t = t.replace('" -Xcontext-receivers"', '"')
+                  t = t.replace("'-Xcontext-receivers'", "")
+                  t = t.replace('" -Xcontext-receivers ', '" ')
+                  t = t.replace('"-Xcontext-receivers"', "")
                   if module == "musicapp":
                       t = t.replace('alias(music.plugins.android.application)', 'id("com.android.library")')
                       t = re.sub(r'^\s*applicationId\s*=.*\n', '', t, flags=re.M)
