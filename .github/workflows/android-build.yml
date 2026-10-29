@@ -253,6 +253,14 @@ jobs:
               t = re.sub(r'^\s*isShrinkResources\s*=.*\n', '', t, flags=re.M)
               t = re.sub(r'\n\s*dependenciesInfo\s*\{[^{}]*\}', '', t, flags=re.S)
               t = re.sub(r'\n\s*androidResources\s*\{\s*generateLocaleConfig\s*=\s*true\s*\}', '', t, flags=re.S)
+              # Remove the original per-ABI flavors when turning this app into a
+              # library; they make the host's standard variant ambiguous.
+              t = re.sub(r'\n\s*productFlavors\s*\{(?:[^{}]|\{[^{}]*\})*\}', '', t, flags=re.S)
+              t = re.sub(r'^\s*flavorDimensions\s*(?:\+=|=).*\n', '', t, flags=re.M)
+              # Match the manga host's "standard" flavor so Gradle selects one
+              # library variant rather than five ABI variants.
+              if "productFlavors {" not in t:
+                  t = re.sub(r'android\s*\{', 'android {\n    productFlavors { create("standard") {} }', t, count=1)
               # The app used AGP-generated version constants. A library does not
               # generate them from versionName/versionCode, so explicitly restore them.
               if "buildFeatures {" in t:
