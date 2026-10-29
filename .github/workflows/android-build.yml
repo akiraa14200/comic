@@ -233,7 +233,9 @@ jobs:
                   t = t.replace('" -Xcontext-receivers"', '"')
                   t = t.replace("'-Xcontext-receivers'", "")
                   t = t.replace('" -Xcontext-receivers ', '" ')
-                  t = t.replace('"-Xcontext-receivers"', "")
+                  # Remove the obsolete flag wherever it appears in the music Gradle DSL.
+                  t = re.sub(r'["\\']-Xcontext-receivers["\\']\\s*,?', '', t)
+                  t = re.sub(r',\\s*\\)', ')', t)
                   if module == "musicapp":
                       t = t.replace('alias(music.plugins.android.application)', 'id("com.android.library")')
                       t = re.sub(r'^\s*applicationId\s*=.*\n', '', t, flags=re.M)
