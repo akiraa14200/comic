@@ -105,3 +105,69 @@ jobs:
             manga/app/build/outputs/apk/standard/debug/*.apk
             manga/app/build/outputs/apk/standard/debug/*/*.apk
           if-no-files-found: ignore
+
+
+  integration-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout COMICKO
+        uses: actions/checkout@v4
+
+      - name: Extract both projects and map integration points
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _audit/music _audit/manga
+          unzip -q Velune-main.zip -d _audit/music
+          unzip -q yokai-master.zip -d _audit/manga
+          MUSIC_ROOT="$(find _audit/music -type d -name buildSrc -prune -o -type f -name settings.gradle.kts -print | head -n 1 | xargs -r dirname)"
+          MANGA_ROOT="$(find _audit/manga -type d -name buildSrc -prune -o -type f -name settings.gradle.kts -print | head -n 1 | xargs -r dirname)"
+          test -n "$MUSIC_ROOT"
+          test -n "$MANGA_ROOT"
+          python3 - "$MUSIC_ROOT" "$MANGA_ROOT" <<'PY'
+          import pathlib, re, sys
+          music, manga = map(pathlib.Path, sys.argv[1:])
+          out = ["# COMICKO Integration Audit", "",
+                 "This report maps the two source projects before merging them into one installable app.",
+                 "It is an audit only; it does not claim that the combined app is already integrated.", ""]
+          for label, root in [("Music (Velune)", music), ("Manga reader (Yōkai)", manga)]:
+              out += [f"## {label}", "", f"- Project root: `{root}`"]
+              for rel in ["settings.gradle.kts", "settings.gradle", "build.gradle.kts",
+                          "build.gradle", "gradle/libs.versions.toml",
+                          "gradle/androidx.versions.toml", "app/build.gradle.kts",
+                          "app/build.gradle", "app/src/main/AndroidManifest.xml"]:
+                  p = root / rel
+                  if p.is_file():
+                      text = p.read_text(errors="replace")
+                      if rel.startswith("settings.gradle"):
+                          lines = [x.strip() for x in text.splitlines()
+                                   if re.search(r'include|project\(', x)]
+                          out += [f"### {rel}", "", "```kotlin", *(lines[:100] or ["(no include declarations found)"]), "```", ""]
+                      elif rel in ("app/build.gradle.kts", "app/build.gradle"):
+                          lines = [x.strip() for x in text.splitlines()
+                                   if re.search(r'namespace|applicationId|compileSdk|minSdk|targetSdk|alias\(', x)]
+                          out += [f"### Key settings from {rel}", "", "```kotlin", *(lines[:100] or ["(no matching settings found)"]), "```", ""]
+                      elif rel.endswith("AndroidManifest.xml"):
+                          lines = [x.strip() for x in text.splitlines()
+                                   if re.search(r'<manifest|package=|<application|<activity|<service|<provider|MAIN|LAUNCHER|foregroundServiceType', x)]
+                          out += [f"### Manifest entry points", "", "```xml", *(lines[:120] or ["(no manifest entry points found)"]), "```", ""]
+                      elif "versions.toml" in rel:
+                          out += [f"- Version catalog present: `{rel}`"]
+              modules = sorted(p.name for p in root.iterdir() if p.is_dir() and
+                               (p / "build.gradle.kts").exists() or p.is_dir() and (p / "build.gradle").exists())
+              out += [f"- Top-level Gradle modules: {', '.join(modules) if modules else '(see settings file)'}", ""]
+          out += ["## Integration risks to resolve", "",
+                  "- Align Gradle wrapper/AGP/Kotlin and version catalogs without silently downgrading dependencies.",
+                  "- Merge manifest permissions, services, providers, deep links, and launch activities.",
+                  "- Resolve duplicate resources, dependencies, package/namespace collisions, and app IDs.",
+                  "- Wire the reader screen and music playback service into one navigation/activity host.",
+                  "- Implement a floating player connected to the real playback session; do not substitute mock playback.",
+                  "- Build and upload one final APK only after the merged app task succeeds.", ""]
+          pathlib.Path("COMICKO-INTEGRATION-AUDIT.md").write_text("\n".join(out))
+          PY
+
+      - name: Upload integration audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: comicko-integration-audit
+          path: COMICKO-INTEGRATION-AUDIT.md
