@@ -260,7 +260,7 @@ jobs:
               # Match the manga host's "standard" flavor so Gradle selects one
               # library variant rather than five ABI variants.
               if "productFlavors {" not in t:
-                  t = re.sub(r'android\s*\{', 'android {\n    productFlavors { create("standard") {} }', t, count=1)
+                  t = re.sub(r'android\s*\{', 'android {\n    flavorDimensions += "default"\n    productFlavors { create("standard") { dimension = "default" } }', t, count=1)
               # The app used AGP-generated version constants. A library does not
               # generate them from versionName/versionCode, so explicitly restore them.
               if "buildFeatures {" in t:
