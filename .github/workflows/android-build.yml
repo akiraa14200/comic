@@ -201,6 +201,8 @@ jobs:
           cp "$MUSIC_ROOT/gradle/libs.versions.toml" spike/gradle/music.versions.toml
           # Align Kotlin plugin aliases with the manga host buildSrc classpath for this experiment.
           sed -i 's/kotlin = "2.3.10"/kotlin = "2.4.10"/' spike/gradle/music.versions.toml
+          # Hilt 2.59.x requires AGP 9+, while this spike intentionally uses the manga host AGP 8.12.2.
+          sed -i 's/hilt = "2.59.2"/hilt = "2.57.2"/' spike/gradle/music.versions.toml
           # Reuse Kotlin plugins already supplied by the manga buildSrc classpath.
           sed -i 's/kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }/kotlin-jvm = { id = "org.jetbrains.kotlin.jvm" }/' spike/gradle/music.versions.toml
           sed -i 's/kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }/kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization" }/' spike/gradle/music.versions.toml
