@@ -283,7 +283,7 @@ jobs:
               raise SystemExit("Manga host app/build.gradle.kts was not found")
           ht = host_build.read_text()
           if 'implementation(project(":musicapp"))' not in ht:
-              ht += '\\n\\ndependencies {\\n    implementation(project(":musicapp"))\\n}\\n'
+              ht += '\n\ndependencies {\n    implementation(project(":musicapp"))\n}\n'
           host_build.write_text(ht)
           print("Temporary project prepared with music library linked into the manga host APK; source archives and main branch remain unchanged.")
           PY
