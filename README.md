@@ -1,16 +1,25 @@
 # COMICKO
 
-COMICKO is intended to combine the supplied Velune music player and Yōkai manga reader into one Android application.
+COMICKO is being developed as one Android application combining the supplied Velune music player and Yōkai manga reader.
 
-## Integration status
+## Current status
 
-This repository is the target repository requested for COMICKO. The actual source trees must be committed under `music/` and `manga/` before the Android CI workflow can compile them. The integration workspace ZIP is not itself a finished merged app, and no APK should be described as complete until CI succeeds.
+- Source archives are committed at the repository root as `Velune-main.zip` and `yokai-master.zip`.
+- GitHub Actions extracts each archive and runs independent baseline build checks.
+- The latest CI workflow is still running; no successful APK has been confirmed yet.
+- The baseline jobs are validation only. They do not yet constitute the merged COMICKO app.
 
-## Planned integration requirements
+## Integration requirements
 
-- One Android app and one APK, branded COMICKO.
-- Preserve the original reader and music-player capabilities and their license notices.
-- Music playback continues while reading manga.
-- An in-app floating music controller wired to the real playback service/session.
+- One installable Android app/APK branded COMICKO.
+- Preserve reader and music-player features and applicable license notices.
+- Music playback must continue while the reader is open.
+- Floating in-app music controls must connect to the actual playback service/session.
 - Unified glassmorphism UI.
-- GitHub Actions debug APK build and artifact upload.
+- GitHub Actions build and APK artifact publishing.
+
+## Integration constraints found during source audit
+
+The two source projects currently use different Android build configurations and dependency catalogs. Velune uses AGP 9.1.1/Kotlin 2.3.10, while Yōkai uses AGP 8.12.2/Kotlin 2.4.10 and custom Gradle convention plugins. They also each declare their own application module, manifest, resources, and launch activity. A real merge therefore requires deliberate Gradle/catalog reconciliation and manifest/resource integration; simply copying one app's source into the other would not produce a reliable single APK.
+
+Do not treat the baseline APKs as the finished COMICKO app. The combined app is complete only after integration compiles and reader/music handoff is verified.
