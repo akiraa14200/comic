@@ -288,12 +288,14 @@ jobs:
               t = manifest.read_text(errors="replace")
               t = re.sub(r'\s*android:name="\.App"', '', t)
               t = re.sub(r'\s*<intent-filter>\s*<action android:name="android.intent.action.MAIN"\s*/>\s*<category android:name="android.intent.category.LAUNCHER"\s*/>\s*</intent-filter>', '', t, flags=re.S)
-              # These are application-level settings owned by the manga host.
+              # Strip conflicting application attributes and FileProvider entries
+              # from the library manifest; the manga app owns these declarations.
               t = re.sub(r'\s+android:supportsRtl="[^"]*"', '', t)
-              t = re.sub(r'\s+android:theme="@style/Theme\.VeluneApp"', '', t)
-              # The music module's FileProvider collides with the reader's provider.
-              t = re.sub(r'<provider\b(?=[^>]*android:name="androidx\.core\.content\.FileProvider")[^>]*/\s*>', '', t, flags=re.S)
-              t = re.sub(r'<provider\b(?=[^>]*android:name="androidx\.core\.content\.FileProvider")[^>]*>.*?</provider>', '', t, flags=re.S)
+              t = re.sub(r'\s+android:theme="[^"]*"', '', t)
+              t = re.sub(r'\s+android:allowBackup="[^"]*"', '', t)
+              t = re.sub(r'\s+android:label="[^"]*"', '', t)
+              t = re.sub(r'<provider\b(?=[^>]*android:name="androidx\.core\.content\.FileProvider")[\s\S]*?</provider>', '', t)
+              t = re.sub(r'<provider\b(?=[^>]*android:name="androidx\.core\.content\.FileProvider")[^>]*/\s*>', '', t)
               manifest.write_text(t)
           # Hilt's @HiltAndroidApp belongs on the single host Application; defer it
           # until the host startup classes are deliberately unified.
