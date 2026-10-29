@@ -24,33 +24,38 @@ jobs:
       - name: Extract music source
         shell: bash
         run: |
+          set -euo pipefail
           test -f Velune-main.zip || { echo "::error::Velune-main.zip is missing from repository root"; exit 1; }
           mkdir -p _extract/music
           unzip -q Velune-main.zip -d _extract/music
-          ROOT="$(find _extract/music -type f -name settings.gradle.kts -print -quit | xargs -r dirname)"
-          if [ -z "$ROOT" ]; then ROOT="$(find _extract/music -type f -name settings.gradle -print -quit | xargs -r dirname)"; fi
-          test -n "$ROOT" || { echo "::error::Could not locate the music Gradle project inside Velune-main.zip"; exit 1; }
+          ROOT="$(find _extract/music -type d -name buildSrc -prune -o -type f -name settings.gradle.kts -print | head -n 1 | xargs -r dirname)"
+          if [ -z "$ROOT" ]; then ROOT="$(find _extract/music -type d -name buildSrc -prune -o -type f -name settings.gradle -print | head -n 1 | xargs -r dirname)"; fi
+          test -n "$ROOT" || { echo "::error::Could not locate the root music Gradle project inside Velune-main.zip"; exit 1; }
           mkdir -p music
           cp -a "$ROOT"/. music/
           echo "Extracted music project from: $ROOT"
+          test -f music/settings.gradle.kts
           test -f music/gradle/libs.versions.toml
-          test -f music/gradle/wrapper/gradle-wrapper.jar
 
       - name: Build music baseline APK
         working-directory: music
         run: |
-          # This source archive contains the wrapper JAR but not wrapper properties.
-          # Use a pinned Gradle installation for CI rather than relying on the incomplete wrapper.
+          set -euo pipefail
           curl -fsSL https://services.gradle.org/distributions/gradle-9.3.1-bin.zip -o "$RUNNER_TEMP/gradle.zip"
           unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
-          "$RUNNER_TEMP/gradle-9.3.1/bin/gradle" :app:assembleDebug --no-daemon
+          # AGP's per-app language task expects this file when generateLocaleConfig=true.
+          mkdir -p app/src/main/res
+          if [ ! -f app/src/main/res/resources.properties ]; then
+            printf 'unqualifiedResLocale=en\n' > app/src/main/res/resources.properties
+          fi
+          "$RUNNER_TEMP/gradle-9.3.1/bin/gradle" :app:assembleUniversalDebug --no-daemon
 
       - name: Upload music baseline APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: comicko-music-baseline
-          path: music/app/build/outputs/apk/debug/*.apk
+          path: music/app/build/outputs/apk/universal/debug/*.apk
           if-no-files-found: ignore
 
   build-manga-baseline:
@@ -68,27 +73,35 @@ jobs:
       - name: Extract manga source
         shell: bash
         run: |
+          set -euo pipefail
           test -f yokai-master.zip || { echo "::error::yokai-master.zip is missing from repository root"; exit 1; }
           mkdir -p _extract/manga
           unzip -q yokai-master.zip -d _extract/manga
-          ROOT="$(find _extract/manga -type f -name settings.gradle.kts -print -quit | xargs -r dirname)"
-          if [ -z "$ROOT" ]; then ROOT="$(find _extract/manga -type f -name settings.gradle -print -quit | xargs -r dirname)"; fi
-          test -n "$ROOT" || { echo "::error::Could not locate the manga Gradle project inside yokai-master.zip"; exit 1; }
+          # The archive has a nested buildSrc/settings.gradle.kts; explicitly skip buildSrc.
+          ROOT="$(find _extract/manga -type d -name buildSrc -prune -o -type f -name settings.gradle.kts -print | head -n 1 | xargs -r dirname)"
+          if [ -z "$ROOT" ]; then ROOT="$(find _extract/manga -type d -name buildSrc -prune -o -type f -name settings.gradle -print | head -n 1 | xargs -r dirname)"; fi
+          test -n "$ROOT" || { echo "::error::Could not locate the root manga Gradle project inside yokai-master.zip"; exit 1; }
           mkdir -p manga
           cp -a "$ROOT"/. manga/
           echo "Extracted manga project from: $ROOT"
+          test -f manga/settings.gradle.kts
+          test -f manga/gradle/androidx.versions.toml
+          test -f manga/buildSrc/build.gradle.kts
 
       - name: Build manga baseline APK
         working-directory: manga
         run: |
+          set -euo pipefail
           curl -fsSL https://services.gradle.org/distributions/gradle-8.14.4-bin.zip -o "$RUNNER_TEMP/gradle.zip"
           unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
-          "$RUNNER_TEMP/gradle-8.14.4/bin/gradle" :app:assembleDebug --no-daemon
+          "$RUNNER_TEMP/gradle-8.14.4/bin/gradle" :app:assembleStandardDebug --no-daemon
 
       - name: Upload manga baseline APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: comicko-manga-baseline
-          path: manga/app/build/outputs/apk/debug/*.apk
+          path: |
+            manga/app/build/outputs/apk/standard/debug/*.apk
+            manga/app/build/outputs/apk/standard/debug/*/*.apk
           if-no-files-found: ignore
