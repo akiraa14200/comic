@@ -171,3 +171,97 @@ jobs:
         with:
           name: comicko-integration-audit
           path: COMICKO-INTEGRATION-AUDIT.md
+
+
+  integration-spike:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout isolated integration branch
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Assemble a temporary merged Gradle project
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _spike/music _spike/manga
+          unzip -q Velune-main.zip -d _spike/music
+          unzip -q yokai-master.zip -d _spike/manga
+          MUSIC_ROOT="$(find _spike/music -type d -name buildSrc -prune -o -type f -name settings.gradle.kts -print | head -n 1 | xargs -r dirname)"
+          MANGA_ROOT="$(find _spike/manga -type d -name buildSrc -prune -o -type f -name settings.gradle.kts -print | head -n 1 | xargs -r dirname)"
+          test -n "$MUSIC_ROOT"
+          test -n "$MANGA_ROOT"
+          mkdir -p spike
+          cp -a "$MANGA_ROOT"/. spike/
+          cp "$MUSIC_ROOT/gradle/libs.versions.toml" spike/gradle/music.versions.toml
+          mkdir -p spike/musicapp
+          cp -a "$MUSIC_ROOT/app"/. spike/musicapp/
+          for module in innertube kugou lrclib lastfm betterlyrics kizzy simpmusic canvas; do
+            cp -a "$MUSIC_ROOT/$module" "spike/$module"
+          done
+          python3 - "$MUSIC_ROOT" <<'PY'
+          import pathlib, re, sys
+          music_root = pathlib.Path(sys.argv[1])
+          root = pathlib.Path("spike")
+          settings = root / "settings.gradle.kts"
+          s = settings.read_text()
+          s = s.replace('        create("kotlinx") {\n            from(files("gradle/kotlinx.versions.toml"))\n        }',
+                        '        create("kotlinx") {\n            from(files("gradle/kotlinx.versions.toml"))\n        }\n        create("music") {\n            from(files("gradle/music.versions.toml"))\n        }')
+          s += '\n// COMICKO integration spike: original music modules, isolated from main.\n'
+          for module in ["innertube", "kugou", "lrclib", "lastfm", "betterlyrics", "kizzy", "simpmusic", "canvas"]:
+              s += f'include(":{module}")\n'
+          s += 'include(":musicapp")\n'
+          settings.write_text(s)
+          for module in ["musicapp", "innertube", "kugou", "lrclib", "lastfm", "betterlyrics", "kizzy", "simpmusic", "canvas"]:
+              for p in (root / module).rglob("*.gradle.kts"):
+                  t = p.read_text(errors="replace")
+                  t = re.sub(r'\blibs\.', 'music.', t)
+                  if module == "musicapp":
+                      t = t.replace('alias(music.plugins.android.application)', 'id("com.android.library")')
+                      t = re.sub(r'^\s*applicationId\s*=.*\n', '', t, flags=re.M)
+                      t = re.sub(r'^\s*applicationIdSuffix\s*=.*\n', '', t, flags=re.M)
+                      t = re.sub(r'^\s*signingConfig\s*=\s*signingConfigs\.getByName\("release"\)\s*\n', '', t, flags=re.M)
+                  p.write_text(t)
+          # A library manifest cannot claim the app's launcher or Application class.
+          manifest = root / "musicapp/src/main/AndroidManifest.xml"
+          if manifest.exists():
+              t = manifest.read_text(errors="replace")
+              t = re.sub(r'\s*android:name="\.App"', '', t)
+              t = re.sub(r'\s*<intent-filter>\s*<action android:name="android.intent.action.MAIN"\s*/>\s*<category android:name="android.intent.category.LAUNCHER"\s*/>\s*</intent-filter>', '', t, flags=re.S)
+              manifest.write_text(t)
+          # Hilt's @HiltAndroidApp belongs on the single host Application; defer it
+          # until the host startup classes are deliberately unified.
+          app_sources = root / "musicapp/src/main"
+          for p in app_sources.rglob("*.kt"):
+              t = p.read_text(errors="replace")
+              if "@HiltAndroidApp" in t:
+                  t = t.replace("@HiltAndroidApp", "// @HiltAndroidApp deferred during integration spike")
+                  p.write_text(t)
+          print("Temporary project prepared; source archives and main branch remain unchanged.")
+          PY
+          curl -fsSL https://services.gradle.org/distributions/gradle-8.14.4-bin.zip -o "$RUNNER_TEMP/gradle.zip"
+          unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
+
+      - name: Compile music library against manga host toolchain
+        id: compile-spike
+        working-directory: spike
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p app/src/main/res
+          "$RUNNER_TEMP/gradle-8.14.4/bin/gradle" :musicapp:assembleDebug --no-daemon --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/integration-spike.log"
+
+      - name: Upload integration spike diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: comicko-integration-spike-diagnostics
+          path: |
+            integration-spike.log
+            spike/musicapp/build/outputs/aar/*.aar
+          if-no-files-found: ignore
