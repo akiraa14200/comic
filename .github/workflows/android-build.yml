@@ -235,6 +235,17 @@ jobs:
                       t = re.sub(r'^\s*applicationIdSuffix\s*=.*\n', '', t, flags=re.M)
                       t = re.sub(r'^\s*signingConfig\s*=\s*signingConfigs\.getByName\("release"\)\s*\n', '', t, flags=re.M)
                   p.write_text(t)
+          # The original app DSL has fields that are not valid in an Android library module.
+          build_file = root / "musicapp/build.gradle.kts"
+          if build_file.exists():
+              t = build_file.read_text()
+              t = t.replace('plugins {\n', 'plugins {\n    id("org.jetbrains.kotlin.android")\n', 1)
+              t = re.sub(r'^\s*versionCode\s*=.*\n', '', t, flags=re.M)
+              t = re.sub(r'^\s*versionName\s*=.*\n', '', t, flags=re.M)
+              t = re.sub(r'^\s*isDebuggable\s*=.*\n', '', t, flags=re.M)
+              t = re.sub(r'\n\s*dependenciesInfo\s*\{[^{}]*\}', '', t, flags=re.S)
+              t = re.sub(r'\n\s*androidResources\s*\{\s*generateLocaleConfig\s*=\s*true\s*\}', '', t, flags=re.S)
+              build_file.write_text(t)
           # A library manifest cannot claim the app's launcher or Application class.
           manifest = root / "musicapp/src/main/AndroidManifest.xml"
           if manifest.exists():
