@@ -246,6 +246,14 @@ jobs:
               t = re.sub(r'^\s*isShrinkResources\s*=.*\n', '', t, flags=re.M)
               t = re.sub(r'\n\s*dependenciesInfo\s*\{[^{}]*\}', '', t, flags=re.S)
               t = re.sub(r'\n\s*androidResources\s*\{\s*generateLocaleConfig\s*=\s*true\s*\}', '', t, flags=re.S)
+              # The app used AGP-generated version constants. A library does not
+              # generate them from versionName/versionCode, so explicitly restore them.
+              if "buildFeatures {" in t:
+                  t = re.sub(r'buildFeatures\s*\{', 'buildFeatures {\\n        buildConfig = true', t, count=1)
+              else:
+                  t = re.sub(r'android\s*\{', 'android {\\n    buildFeatures { buildConfig = true }', t, count=1)
+              if "buildConfigField(\\"String\\", \\"VERSION_NAME\\" " not in t:
+                  t = re.sub(r'defaultConfig\s*\{', 'defaultConfig {\\n        buildConfigField("String", "VERSION_NAME", "\\\"1.0.0\\\"")\\n        buildConfigField("int", "VERSION_CODE", "1")', t, count=1)
               build_file.write_text(t)
           # A library manifest cannot claim the app's launcher or Application class.
           manifest = root / "musicapp/src/main/AndroidManifest.xml"
