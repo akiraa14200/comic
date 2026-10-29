@@ -2,7 +2,7 @@ name: COMICKO Android Build
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, integration-spike]
   workflow_dispatch:
 
 permissions:
