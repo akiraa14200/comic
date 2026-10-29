@@ -277,7 +277,15 @@ jobs:
               if "@HiltAndroidApp" in t:
                   t = t.replace("@HiltAndroidApp", "// @HiltAndroidApp deferred during integration spike")
                   p.write_text(t)
-          print("Temporary project prepared; source archives and main branch remain unchanged.")
+          # Link the converted music module into the manga host APK.
+          host_build = root / "app/build.gradle.kts"
+          if not host_build.exists():
+              raise SystemExit("Manga host app/build.gradle.kts was not found")
+          ht = host_build.read_text()
+          if 'implementation(project(":musicapp"))' not in ht:
+              ht += '\\n\\ndependencies {\\n    implementation(project(":musicapp"))\\n}\\n'
+          host_build.write_text(ht)
+          print("Temporary project prepared with music library linked into the manga host APK; source archives and main branch remain unchanged.")
           PY
           curl -fsSL https://services.gradle.org/distributions/gradle-8.14.4-bin.zip -o "$RUNNER_TEMP/gradle.zip"
           unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
@@ -289,7 +297,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p app/src/main/res
-          "$RUNNER_TEMP/gradle-8.14.4/bin/gradle" :musicapp:assembleDebug --no-daemon --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/integration-spike.log"
+          "$RUNNER_TEMP/gradle-8.14.4/bin/gradle" :musicapp:assembleDebug :app:assembleStandardDebug --no-daemon --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/integration-spike.log"
 
       - name: Upload integration spike diagnostics
         if: always()
@@ -299,4 +307,5 @@ jobs:
           path: |
             integration-spike.log
             spike/musicapp/build/outputs/aar/*.aar
+            spike/app/build/outputs/apk/**/*.apk
           if-no-files-found: ignore
