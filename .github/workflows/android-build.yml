@@ -199,6 +199,8 @@ jobs:
           mkdir -p spike
           cp -a "$MANGA_ROOT"/. spike/
           cp "$MUSIC_ROOT/gradle/libs.versions.toml" spike/gradle/music.versions.toml
+          # Align Kotlin plugin aliases with the manga host buildSrc classpath for this experiment.
+          sed -i 's/kotlin = "2.3.10"/kotlin = "2.4.10"/' spike/gradle/music.versions.toml
           mkdir -p spike/musicapp
           cp -a "$MUSIC_ROOT/app"/. spike/musicapp/
           for module in innertube kugou lrclib lastfm betterlyrics kizzy simpmusic canvas; do
