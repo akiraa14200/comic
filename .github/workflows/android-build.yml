@@ -292,7 +292,8 @@ jobs:
               t = re.sub(r'\s+android:supportsRtl="[^"]*"', '', t)
               t = re.sub(r'\s+android:theme="@style/Theme\.VeluneApp"', '', t)
               # The music module's FileProvider collides with the reader's provider.
-              t = re.sub(r'\s*<provider\b(?=[^>]*android:name="androidx\.core\.content\.FileProvider")(?=[^>]*android:authorities="eu\.kanade\.tachiyomi\.debugYokai\.FileProvider")[^>]*>.*?</provider>', '', t, flags=re.S)
+              t = re.sub(r'<provider\b(?=[^>]*android:name="androidx\.core\.content\.FileProvider")[^>]*/\s*>', '', t, flags=re.S)
+              t = re.sub(r'<provider\b(?=[^>]*android:name="androidx\.core\.content\.FileProvider")[^>]*>.*?</provider>', '', t, flags=re.S)
               manifest.write_text(t)
           # Hilt's @HiltAndroidApp belongs on the single host Application; defer it
           # until the host startup classes are deliberately unified.
