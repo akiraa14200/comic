@@ -404,7 +404,7 @@ function VideoPage() {
   const [term,setTerm]=useState('');
   const [format,setFormat]=useState<'all'|'video'|'short'>('all');
   const [category,setCategory]=useState('All');
-  useEffect(()=>{let active=true;getRelatedVideos(1).then(data=>enrichVideoMetadata(data)).then(data=>{if(!active)return;setVideos(data);setHasMore(data.length===40);}).catch(e=>{if(active)setError(e instanceof Error?e.message:'Could not load videos.');}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[]);
+  useEffect(()=>{let active=true;getRelatedVideos(1).then(data=>enrichVideoMetadata(data)).then(data=>{if(!active)return;setVideos(data);setHasMore(data.length>0);}).catch(e=>{if(active)setError(e instanceof Error?e.message:'Could not load videos.');}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[]);
   useEffect(()=>{
     const root=document.querySelector('.yt-page');
     if(!root)return;
@@ -430,7 +430,7 @@ function VideoPage() {
   const shorts=filtered.filter(v=>detectVideoFormat(v.videoUrl)==='short');
   const regular=filtered.filter(v=>detectVideoFormat(v.videoUrl)==='video');
   const visible=format==='short'?shorts:format==='video'?regular:filtered;
-  const loadMore=async()=>{if(loadingMore||!hasMore)return;setLoadingMore(true);setError('');try{const raw=await getRelatedVideos(page+1);const data=await enrichVideoMetadata(raw);setVideos(old=>[...old,...data.filter(v=>!old.some(x=>x.id===v.id))]);setPage(page+1);setHasMore(data.length===40);}catch(e){setError(e instanceof Error?e.message:'Could not load more videos.');}finally{setLoadingMore(false);}};
+  const loadMore=async()=>{if(loadingMore||!hasMore)return;setLoadingMore(true);setError('');try{const raw=await getRelatedVideos(page+1);const data=await enrichVideoMetadata(raw);setVideos(old=>[...old,...data.filter(v=>!old.some(x=>x.id===v.id))]);setPage(page+1);setHasMore(data.length>0);}catch(e){setError(e instanceof Error?e.message:'Could not load more videos.');}finally{setLoadingMore(false);}};
   const card=(video:RelatedVideo,short:boolean)=>{
     const playing=playingId===video.id,embed=videoEmbedUrl(video),thumbnail=videoThumbnail(video);
     return <article key={video.id} className={`yt-video-card ${short?'yt-short-card':'yt-standard-card'}`}>
