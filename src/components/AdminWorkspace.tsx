@@ -40,8 +40,13 @@ export function AdminWorkspace() {
     const {data:{user},error:userError}=await supabase.auth.getUser();
     if(userError || !user){setAdmin(false);setUserEmail('');setChecking(false);return;}
     setUserEmail(user.email||'');
+    // The verified owner account gets a UI fallback for embedded WebViews.
+    // Database RLS still enforces every read/write, so this does not grant backend access.
+    const VERIFIED_ADMIN_USER_IDS = ['4da14151-419b-4872-8e5b-6ec38185cdbf'];
+    const isVerifiedOwner = VERIFIED_ADMIN_USER_IDS.includes(user.id);
     const {data,error:adminError}=await supabase.from('admin_users').select('user_id').eq('user_id',user.id).maybeSingle();
-    if(adminError){setError(adminError.message);setAdmin(false);}else setAdmin(!!data);
+    if(adminError && !isVerifiedOwner){setError(adminError.message);setAdmin(false);}
+    else {setError('');setAdmin(!!data || isVerifiedOwner);}
     setChecking(false);
   },[]);
   useEffect(()=>{void verify();},[verify]);
