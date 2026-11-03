@@ -12,8 +12,8 @@ const readLocal = <T,>(key: string, fallback: T): T => {
 
 export function SmartDiscovery({ mode }: { mode: Mode }) {
   const [saved, setSaved] = useState<Anime[]>(() => readLocal('kairo-watchlist', []));
-  const [statuses, setStatuses] = useState<Record<number, Status>>(() => readLocal('rykoc-library-status', {}));
-  const [history, setHistory] = useState<HistoryItem[]>(() => readLocal('kairo-history', []));
+  const [statuses] = useState<Record<number, Status>>(() => readLocal('rykoc-library-status', {}));
+  const [history] = useState<HistoryItem[]>(() => readLocal('kairo-history', []));
   const [term, setTerm] = useState('');
   const [genre, setGenre] = useState('');
   const [status, setStatus] = useState('');
