@@ -81,7 +81,7 @@ async function queryUncached<T>(queryText: string, variables: Record<string, unk
   if (cached && cached.expires > Date.now()) return cached.value as T;
 
   let lastError: Error = new Error('Anime catalogue is temporarily unavailable.');
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 8000);
     try {
@@ -91,11 +91,11 @@ async function queryUncached<T>(queryText: string, variables: Record<string, unk
         body: JSON.stringify({ query: queryText, variables }),
         signal: controller.signal
       });
-      window.clearTimeout(timeout);
 
       // AniList can return useful GraphQL error details with non-2xx responses.
       // Read the body before deciding whether to retry so users see the real cause.
       const rawBody = await response.text();
+      window.clearTimeout(timeout);
       let payload: AniListResponse<T> | null = null;
       try { payload = rawBody ? JSON.parse(rawBody) as AniListResponse<T> : null; } catch { /* non-JSON proxy/server response */ }
 
@@ -110,7 +110,7 @@ async function queryUncached<T>(queryText: string, variables: Record<string, unk
             : response.status === 400
               ? 'AniList rejected the catalogue request (400). The API did not provide a readable query error.'
               : `Anime catalogue request failed (${response.status}).`);
-        if (retryable && attempt < 2) {
+        if (retryable && attempt < 3) {
           await new Promise(resolve => window.setTimeout(resolve, retryAfter > 0 ? Math.min(retryAfter * 1000, 5000) : 500 * (attempt + 1)));
           continue;
         }
@@ -130,7 +130,7 @@ async function queryUncached<T>(queryText: string, variables: Record<string, unk
         return payload.data;
       }
       lastError = new Error(payload.errors?.map(error => error.message).filter(Boolean).join(' · ') || 'AniList returned an incomplete response.');
-      if (attempt < 2 && /rate|temporar|timeout|internal/i.test(lastError.message)) {
+      if (attempt < 3 && /rate|temporar|timeout|internal/i.test(lastError.message)) {
         await new Promise(resolve => window.setTimeout(resolve, 400 * (attempt + 1)));
         continue;
       }
@@ -140,7 +140,7 @@ async function queryUncached<T>(queryText: string, variables: Record<string, unk
       lastError = error instanceof Error
         ? (error.name === 'AbortError' ? new Error('AniList took too long to respond. Please try again.') : error)
         : new Error('Could not connect to AniList.');
-      if (attempt < 2 && (lastError.name === 'AbortError' || /fetch|network|temporar|timed out/i.test(lastError.message))) {
+      if (attempt < 3 && (lastError.name === 'AbortError' || /fetch|network|temporar|timed out/i.test(lastError.message))) {
         await new Promise(resolve => window.setTimeout(resolve, 450 * (attempt + 1)));
         continue;
       }
