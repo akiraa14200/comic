@@ -347,3 +347,18 @@ body{padding-bottom:104px}
 .mode-switch span{padding:7px 11px;border-radius:999px;transition:background .2s,color .2s}
 .mode-switch .mode-active{background:#d8ceff;color:#171421;font-weight:700}
 @media(max-width:700px){.mode-switch{order:2;margin-left:auto}.mode-switch span{padding:6px 9px}.nav-wrap{gap:9px}}
+
+/* Structured character profiles shared by anime and manga entries */
+.character-details{display:grid;gap:18px;margin-top:20px}
+.character-role-line{display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid #ffffff12;border-radius:10px;background:#ffffff06}
+.character-role-line>span{color:#898597;font-size:9px;font-weight:800;letter-spacing:.13em}
+.character-role-line>strong{color:#e9e4f5;font-size:12px;text-transform:capitalize}
+.character-detail-group{padding:15px;border:1px solid #ffffff12;border-radius:12px;background:#ffffff04}
+.character-detail-group>h3{margin:0 0 12px;color:#f0edf7;font-size:13px;font-weight:750}
+.character-detail-group .character-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:9px;margin:0;padding:0;border:0}
+.character-detail-group .character-facts span{min-width:0;padding:10px;border:1px solid #ffffff0e;border-radius:9px;background:#ffffff05;overflow-wrap:anywhere}
+.character-detail-group .character-facts strong{font-size:9px;text-transform:uppercase;letter-spacing:.06em}
+.character-detail-group .character-bio{font-size:12px;line-height:1.85;white-space:normal}
+.character-detail-group .character-bio p{margin:0 0 12px}
+.character-detail-group .character-bio p:last-child{margin-bottom:0}
+@media(max-width:520px){.character-detail-group{padding:12px}.character-detail-group .character-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
