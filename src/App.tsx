@@ -6,15 +6,14 @@ import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, 
 import type { User } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { AnimeComments } from './components/AnimeComments';
-import { ExtensionPage } from './components/ExtensionPage';
-import './components/extension-page.css';
 
 type StoredProgress = { id: number; title: string; image: string; progress: number; updated: number };
 const readStore = <T,>(key: string, fallback: T): T => {
   try { const value = localStorage.getItem(key); return value ? JSON.parse(value) as T : fallback; } catch { return fallback; }
 };
 
-function Header({ user, onSignOut }: { user: User | null; onSignOut: () => void }) {
+type CatalogueMode = 'anime' | 'manga';
+function Header({ user, onSignOut, mode, onModeChange }: { user: User | null; onSignOut: () => void; mode: CatalogueMode; onModeChange: (mode: CatalogueMode) => void }) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState('');
   const navigate = useNavigate();
@@ -22,30 +21,30 @@ function Header({ user, onSignOut }: { user: User | null; onSignOut: () => void 
   useEffect(() => setOpen(false), [location.pathname]);
   const submit = (event: FormEvent) => { event.preventDefault(); navigate(term.trim() ? `/search?q=${encodeURIComponent(term.trim())}` : '/search'); setOpen(false); };
   return <header className="topbar"><div className="nav-wrap">
-    <Link to="/" className="brand"><span className="brand-mark">R</span><span>RYKOCCLLECTION</span></Link>
+    <Link to="/" className="brand"><span className="brand-mark">R</span><span>RYKOCCLLECTION</span></Link><button className="mode-switch" onClick={()=>onModeChange(mode === 'anime' ? 'manga' : 'anime')}><span className={mode==='anime'?'mode-active':''}>Anime</span><span className={mode==='manga'?'mode-active':''}>Manga</span></button>
     <nav className={open ? 'nav-links open' : 'nav-links'}>
       <Link to="/"><Compass size={16}/> Discover</Link><Link to="/search">Explore</Link><Link to="/watchlist"><Bookmark size={16}/> My list</Link><Link to="/video"><Tv size={16}/> Video</Link><Link to="/privacy"><ShieldCheck size={16}/> Privacy</Link>
     </nav>
-    <form className="nav-search" onSubmit={submit}><Search size={17}/><input value={term} onChange={e => setTerm(e.target.value)} placeholder="Search anime..." aria-label="Search anime"/><kbd>↵</kbd></form>
+    <form className="nav-search" onSubmit={submit}><Search size={17}/><input value={term} onChange={e => setTerm(e.target.value)} placeholder={`Search ${mode}...`} aria-label={`Search ${mode}`}/><kbd>↵</kbd></form>
     {user && <div className="nav-account"><span>{String(user.user_metadata?.display_name || "Reader")}</span><button onClick={onSignOut}>Sign out</button></div>}
     <button className="icon-btn mobile-menu" onClick={() => setOpen(!open)} aria-label="Toggle menu">{open ? <X/> : <Menu/>}</button>
   </div></header>;
 }
 
-function AnimeCard({ anime, onSave, saved }: { anime: Anime; onSave: (anime: Anime) => void; saved: boolean }) {
+function AnimeCard({ anime, onSave, saved, mode = 'anime' }: { anime: Anime; onSave: (anime: Anime) => void; saved: boolean; mode?: CatalogueMode }) {
   return <article className="anime-card">
-    <Link to={`/anime/${anime.id}`} className="poster-wrap">
+    <Link to={`/${mode}/${anime.id}`} className="poster-wrap">
       <img src={imageOf(anime)} alt={titleOf(anime)} loading="lazy" decoding="async"/>
       <span className="poster-format">{anime.format || 'ANIME'}</span>
       {anime.averageScore ? <span className="poster-score"><Star size={12} fill="currentColor"/> {(anime.averageScore / 10).toFixed(1)}</span> : null}
     </Link>
-    <div className="card-meta"><div className="card-title-row"><Link to={`/anime/${anime.id}`} className="card-title">{titleOf(anime)}</Link><button className={saved ? 'save-mini saved' : 'save-mini'} onClick={() => onSave(anime)} aria-label={saved ? 'Remove from watchlist' : 'Add to watchlist'}><Bookmark size={15} fill={saved ? 'currentColor' : 'none'}/></button></div><p>{anime.seasonYear || 'Year unknown'} <span>·</span> {anime.episodes ? `${anime.episodes} eps` : 'Ongoing'}</p></div>
+    <div className="card-meta"><div className="card-title-row"><Link to={`/anime/${anime.id}`} className="card-title">{titleOf(anime)}</Link><button className={saved ? 'save-mini saved' : 'save-mini'} onClick={() => onSave(anime)} aria-label={saved ? 'Remove from watchlist' : 'Add to watchlist'}><Bookmark size={15} fill={saved ? 'currentColor' : 'none'}/></button></div><p>{anime.seasonYear || 'Year unknown'} <span>·</span> {mode === 'manga' ? (anime.chapters ? `${anime.chapters} ch` : anime.volumes ? `${anime.volumes} vols` : anime.status?.replaceAll('_',' ') || 'Manga') : (anime.episodes ? `${anime.episodes} eps` : 'Ongoing')}</p></div>
   </article>;
 }
 
-function Section({ title, subtitle, items, saved, onSave, to }: { title: string; subtitle?: string; items: Anime[]; saved: number[]; onSave: (anime: Anime) => void; to?: string }) {
+function Section({ title, subtitle, items, saved, onSave, to, mode = 'anime' }: { title: string; subtitle?: string; items: Anime[]; saved: number[]; onSave: (anime: Anime) => void; to?: string; mode?: CatalogueMode }) {
   if (!items.length) return null;
-  return <section className="section"><div className="section-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>{to && <Link to={to} className="text-link">View all <ChevronRight size={16}/></Link>}</div><div className="anime-grid">{items.map(item => <AnimeCard key={item.id} anime={item} saved={saved.includes(item.id)} onSave={onSave}/>)}</div></section>;
+  return <section className="section"><div className="section-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>{to && <Link to={to} className="text-link">View all <ChevronRight size={16}/></Link>}</div><div className="anime-grid">{items.map(item => <AnimeCard key={item.id} anime={item} saved={saved.includes(item.id)} onSave={onSave} mode={mode}/>)}</div></section>;
 }
 
 function useLibrary() {
@@ -61,7 +60,7 @@ function useLibrary() {
   return { saved, history, toggle, remember, statuses, setLibraryStatus };
 }
 
-function Home() {
+function Home({ mode }: { mode: CatalogueMode }) {
   const [trending, setTrending] = useState<Anime[]>([]);
   const [popular, setPopular] = useState<Anime[]>([]);
   const [seasonal, setSeasonal] = useState<Anime[]>([]);
@@ -70,12 +69,12 @@ function Home() {
   const { saved, history, toggle } = useLibrary();
   useEffect(() => {
     let active = true;
-    Promise.all([getTrending(), getPopular(), getSeasonal()])
+    Promise.all([getTrending(mode.toUpperCase() as 'ANIME'|'MANGA'), getPopular(mode.toUpperCase() as 'ANIME'|'MANGA'), getSeasonal(mode.toUpperCase() as 'ANIME'|'MANGA')])
       .then(([a,b,c]) => { if (active) { setTrending(a); setPopular(b); setSeasonal(c); } })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime right now.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [mode]);
   const [heroIndex, setHeroIndex] = useState(0);
   const featured = trending.slice(0, 5);
   const hero = featured[heroIndex] || trending[0];
@@ -104,7 +103,7 @@ function Home() {
   </main>;
 }
 
-function SearchPage() {
+function SearchPage({ mode }: { mode: CatalogueMode }) {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const [term, setTerm] = useState(params.get('q') || '');
@@ -123,20 +122,20 @@ function SearchPage() {
     let active = true;
     const timer = window.setTimeout(() => {
       setBusy(true); setError(''); setPage(1); setHasMore(true);
-      searchAnime(term.trim(), 1, genre || undefined, status || undefined, format || undefined)
+      searchAnime(term.trim(), 1, genre || undefined, status || undefined, format || undefined, mode.toUpperCase() as 'ANIME'|'MANGA')
         .then(data => { if (active) { setItems(data); setHasMore(data.length === 50); } })
         .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Search failed.'); })
         .finally(() => { if (active) setBusy(false); });
     }, 450);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [term, genre, status, format]);
+  }, [term, genre, status, format, mode]);
 
   const loadMore = async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true); setError('');
     const next = page + 1;
     try {
-      const data = await searchAnime(term.trim(), next, genre || undefined, status || undefined, format || undefined);
+      const data = await searchAnime(term.trim(), next, genre || undefined, status || undefined, format || undefined, mode.toUpperCase() as 'ANIME'|'MANGA');
       setItems(old => { const ids = new Set(old.map(item => item.id)); return [...old, ...data.filter(item => !ids.has(item.id))]; });
       setPage(next); setHasMore(data.length === 50);
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not load more anime.'); }
@@ -156,7 +155,7 @@ function SearchPage() {
       <div className="empty-state"><Search size={28}/><h3>No anime found</h3><p>Try another title or choose a different filter.</p></div>}
   </main>;
 }
-function DetailPage({ user }: { user: User | null }) {
+function DetailPage({ user, mode }: { user: User | null; mode: CatalogueMode }) {
   const { id } = useParams();
   const [anime, setAnime] = useState<Anime | null>(null);
   const [loading, setLoading] = useState(true);
@@ -175,12 +174,12 @@ function DetailPage({ user }: { user: User | null }) {
     let active = true;
     setLoading(true); setError(''); setAnime(null); setActiveTab('overview'); setSelectedCharacter(null); setCharacterPage(1);
     const animeId = Number(id);
-    getAnime(animeId)
+    getAnime(animeId, mode.toUpperCase() as 'ANIME'|'MANGA')
       .then(data => { if (active) { setAnime(data); if (!data) setError('AniList could not find this entry.'); } })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime metadata.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [id, attempt]);
+  }, [id, attempt, mode]);
 
   const loadMoreCharacters = async () => {
     if (!anime?.characters?.pageInfo.hasNextPage || loadingCharacters) return;
@@ -444,7 +443,7 @@ function AccountPage({ user }: { user: User | null }) {
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not complete sign in.'); }
     finally { setBusy(false); }
   };
-  return <main className="content-page account-page"><div className="page-heading"><span className="eyebrow">YOUR RYKOCCLLECTION PROFILE</span><h1>Your <em>Account.</em></h1><p>Sign in to join discussions and keep your profile connected.</p></div><Link className="secondary-btn" to="/extensions" style={{display:"inline-flex",alignItems:"center",gap:8,marginBottom:20}}>Manga extensions hub <Puzzle size={16}/></Link>
+  return <main className="content-page account-page"><div className="page-heading"><span className="eyebrow">YOUR RYKOCCLLECTION PROFILE</span><h1>Your <em>Account.</em></h1><p>Sign in to join discussions and keep your profile connected.</p></div>
     {user ? <section className="account-card"><div className="account-avatar">{String(user.user_metadata?.display_name || user.email || 'R').slice(0,1).toUpperCase()}</div><div><span className="eyebrow">SIGNED IN</span><h2>{String(user.user_metadata?.display_name || user.email?.split('@')[0] || 'Anime fan')}</h2><p>{user.email}</p><button className="secondary-btn" onClick={()=>void supabase.auth.signOut()}>Sign out</button></div></section> :
     <form className="account-card account-form" onSubmit={submit}><div className="account-avatar"><UserRound/></div><h2>{mode==='signin'?'Welcome back':'Create your account'}</h2><p>{mode==='signin'?'Sign in to your RykocCllection account.':'Create a profile to participate in community features.'}</p>
       {mode==='signup' && <input value={displayName} onChange={event=>setDisplayName(event.target.value)} placeholder="Display name" autoComplete="nickname"/>}
@@ -469,6 +468,9 @@ function PrivacyPage() {
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [mode, setMode] = useState<CatalogueMode>(() => readStore<CatalogueMode>('rykoc-catalogue-mode', 'anime'));
+  const navigate = useNavigate();
+  const changeMode = (next: CatalogueMode) => { setMode(next); localStorage.setItem('rykoc-catalogue-mode', next); navigate('/'); };
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
@@ -480,5 +482,5 @@ export default function App() {
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
   const signOut = () => { void supabase.auth.signOut(); };
-  return <><Header user={user} onSignOut={signOut}/><Routes><Route path="/" element={<Home/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/anime/:id" element={<DetailPage user={user}/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="/extensions" element={<ExtensionPage/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Anime metadata via AniList · Independent fan discovery project</span></footer></>;
+  return <><Header user={user} onSignOut={signOut} mode={mode} onModeChange={changeMode}/><Routes><Route path="/" element={<Home mode={mode}/>}/><Route path="/search" element={<SearchPage mode={mode}/>}/><Route path="/anime/:id" element={<DetailPage user={user} mode="anime"/>}/><Route path="/manga/:id" element={<DetailPage user={user} mode="manga"}/> }<Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Anime metadata via AniList · Independent fan discovery project</span></footer></>;
 }
