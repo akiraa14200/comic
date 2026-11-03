@@ -514,8 +514,16 @@ export default function App() {
   useEffect(() => {
     let active = true;
     if (!user) { setIsAdmin(false); return; }
+    // Keep the admin entry point available for the verified owner account even if
+    // the membership lookup is temporarily delayed in an embedded Android WebView.
+    // This is only a UI fallback; Supabase RLS remains the authority for all data access.
+    const VERIFIED_ADMIN_USER_IDS = ['4da14151-419b-4872-8e5b-6ec38185cdbf'];
     supabase.from('admin_users').select('user_id').eq('user_id', user.id).maybeSingle().then(({ data, error }) => {
-      if (active) setIsAdmin(!error && !!data);
+      if (active) setIsAdmin(!!data || VERIFIED_ADMIN_USER_IDS.includes(user.id));
+      if (error) console.warn('Admin membership lookup failed; using verified UI fallback.', error.message);
+    }).catch((error) => {
+      if (active) setIsAdmin(VERIFIED_ADMIN_USER_IDS.includes(user.id));
+      console.warn('Admin membership lookup failed.', error);
     });
     return () => { active = false; };
   }, [user]);
