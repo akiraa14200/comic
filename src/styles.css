@@ -515,3 +515,5 @@ body{padding-bottom:104px}
  .yt-shorts-row{grid-auto-columns:minmax(145px,42vw);gap:11px;padding-left:4%;padding-right:4%}
  .yt-video-feed{grid-template-columns:1fr}
 }
+
+.yt-feed-batch{display:contents}
