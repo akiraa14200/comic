@@ -8,6 +8,8 @@ A responsive anime discovery interface inspired by modern streaming catalogues. 
 - Search AniList's public catalogue and filter by genre.
 - Anime detail pages with synopsis, genres, studio and metadata.
 - Browser-local watchlist and recently viewed history.
+- Supabase-powered entry discussions with nested replies, upvotes/downvotes, Best/Newest/Top sorting, and spoiler-hidden comments.
+- Email/password community accounts with per-user comment ownership.
 - Responsive layouts for mobile and desktop.
 - Privacy information page; no advertising SDKs or analytics scripts are bundled.
 - Optional user-supplied external video URL handoff. The app does not host episodes or provide unauthorized streams.
@@ -19,6 +21,7 @@ A responsive anime discovery interface inspired by modern streaming catalogues. 
 - React Router
 - AniList public GraphQL API
 - Local storage for personal watchlist/history
+- Supabase Auth + PostgreSQL with Row Level Security for community discussions
 
 ## Run locally
 
@@ -37,12 +40,12 @@ npm run preview
 
 ## Data and privacy
 
-Anime metadata is requested directly from AniList's public GraphQL API. Watchlist and recently viewed metadata are stored in the current browser's local storage; there is no account backend or cross-device sync in this version.
+Anime metadata is requested directly from AniList's public GraphQL API. Watchlist and recently viewed metadata remain in the current browser's local storage. Community accounts, comments, replies, spoiler flags and votes are stored in the existing Supabase project. The browser uses only the Supabase publishable key; database access is restricted by Row Level Security.
 
 
 ## Scope notes
 
-Authentication, cloud sync, server-side admin management, episode hosting and a provider-integrated player require trusted backend services and authorized content sources. They are intentionally not represented as implemented features in this frontend-first release.
+The discussion feature requires email/password authentication. If email confirmation is enabled in Supabase Auth, new users must confirm their email before posting. Never put a Supabase service-role or secret key in this frontend.
 
 ## Credits
 
