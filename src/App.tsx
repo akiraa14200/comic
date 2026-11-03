@@ -159,7 +159,7 @@ function SearchPage({ mode }: { mode: CatalogueMode }) {
 function CharacterDetails({ character, role }: { character: AnimeCharacter; role: string }) {
   const raw = character.description || '';
   const decoded = cleanDescription(raw);
-  const markers = [...decoded.matchAll(/(?:^|\\s)__([^_\\n:]{1,32}):__\\s*/g)];
+  const markers = [...decoded.matchAll(/(?:^|\s)__([^_\n:]{1,32}):__\s*/g)];
   const facts: { label: string; value: string }[] = [];
   let biography = decoded;
   if (markers.length) {
@@ -172,7 +172,8 @@ function CharacterDetails({ character, role }: { character: AnimeCharacter; role
     });
     chunks.forEach((chunk, index) => {
       const next = chunks[index + 1];
-      const boundary = chunk.value.match(/[.!?)]\\s+(?=[A-Z])/);\n      const sentenceEnd = boundary ? boundary.index! + 1 : -1;
+      const boundary = chunk.value.match(/[.!?)]\s+(?=[A-Z])/);
+      const sentenceEnd = boundary ? boundary.index! + 1 : -1;
       const value = next || sentenceEnd < 0 ? chunk.value : chunk.value.slice(0, sentenceEnd);
       if (value) facts.push({ label: chunk.label, value: value.trim() });
       if (!next && sentenceEnd >= 0) biography = [prefix, chunk.value.slice(sentenceEnd + 1)].filter(Boolean).join(' ');
@@ -183,14 +184,15 @@ function CharacterDetails({ character, role }: { character: AnimeCharacter; role
   if (character.age) facts.push({ label: 'Age', value: character.age });
   if (character.dateOfBirth && !facts.some(f => /birthday|birth|born/i.test(f.label))) facts.push({ label: 'Birthday', value: [character.dateOfBirth.month, character.dateOfBirth.day].filter(Boolean).join('/') || 'Not listed' });
   if (character.favourites) facts.push({ label: 'Favorites', value: character.favourites.toLocaleString() });
-  const paragraphs = (biography || decoded).split(/\\n{2,}/).map(part => part.trim()).filter(Boolean);
+  const paragraphs = (biography || decoded).split(/\n{2,}/).map(part => part.trim()).filter(Boolean);
   return <div className="character-details">
     <div className="character-role-line"><span>ROLE</span><strong>{role}</strong></div>
     {facts.length > 0 && <section className="character-detail-group"><h3>Quick details</h3><div className="character-facts">{facts.map((fact,index)=><span key={index}><strong>{fact.label}</strong>{fact.value}</span>)}</div></section>}
     {paragraphs.length > 0 && <section className="character-detail-group"><h3>Biography</h3><div className="character-bio">{paragraphs.map((paragraph,index)=><p key={index}>{paragraph}</p>)}</div></section>}
     {!decoded && <div className="character-bio">No biography is available for this character yet.</div>}
   </div>;
-}\nfunction DetailPage({ user, mode }: { user: User | null; mode: CatalogueMode }) {
+}
+function DetailPage({ user, mode }: { user: User | null; mode: CatalogueMode }) {
   const { id } = useParams();
   const [anime, setAnime] = useState<Anime | null>(null);
   const [loading, setLoading] = useState(true);
