@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles, Tv, Info, Users, FileText, CalendarDays, Globe, UserRound, Youtube, ChevronDown, RotateCw, MessageCircle } from 'lucide-react';
+import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle } from 'lucide-react';
 // The application UI and page components are defined below.
 import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getSeasonal, getTrending, imageOf, searchAnime, titleOf } from './lib/anilist';
 import type { User } from '@supabase/supabase-js';
@@ -136,7 +136,7 @@ function DetailPage({ user }: { user: User | null }) {
 
   useEffect(() => {
     let active = true;
-    setLoading(true); setError(''); setAnime(null); setActiveTab('overview'); setSelectedCharacter(null);
+    setLoading(true); setError(''); setAnime(null); setActiveTab('overview'); setSelectedCharacter(null); setCharacterPage(1);
     const animeId = Number(id);
     getAnime(animeId)
       .then(data => { if (active) { setAnime(data); if (!data) setError('AniList could not find this entry.'); } })
