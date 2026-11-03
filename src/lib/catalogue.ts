@@ -13,7 +13,8 @@ export type AnimeCharacter = {
   role?: string;
 };
 export type AnimeStaff = { role: string; node: { name: { full?: string } } };
-export type AnimeExternalLink = { url: string; site: string; type?: string };\nexport type RelatedVideo = { id: string; titleId: string; videoUrl: string; platform: 'youtube' | 'instagram' | 'dailymotion'; videoTitle: string; creatorName: string; creatorAvatarUrl: string; actionType: 'read' | 'watch'; actionUrl: string; sortOrder: number; createdAt: string; titleName?: string; titleCover?: string; titleFormat?: string; releaseYear?: number };
+export type AnimeExternalLink = { url: string; site: string; type?: string };
+export type RelatedVideo = { id: string; titleId: string; videoUrl: string; platform: 'youtube' | 'instagram' | 'dailymotion'; videoTitle: string; creatorName: string; creatorAvatarUrl: string; actionType: 'read' | 'watch'; actionUrl: string; sortOrder: number; createdAt: string; titleName?: string; titleCover?: string; titleFormat?: string; releaseYear?: number };
 export type Anime = {
   id: string;
   title: { romaji?: string; english?: string; native?: string };
@@ -31,7 +32,8 @@ export type Anime = {
   siteUrl?: string;
   nextAiringEpisode?: { episode: number; airingAt: number };
   trailer?: { id: string; site: string };
-  trailerUrl?: string;\n  relatedVideos?: RelatedVideo[];
+  trailerUrl?: string;
+  relatedVideos?: RelatedVideo[];
   countryOfOrigin?: string;
   source?: string;
   synonyms?: string[];
@@ -95,7 +97,8 @@ export async function getRelatedVideos(page = 1, titleId?: string): Promise<Rela
   }
   return videos;
 }
-\nconst mapTitle = (row: TitleRow): Anime => {
+
+const mapTitle = (row: TitleRow): Anime => {
   const trailerId = youtubeId(row.trailer_url || '');
   return {
     id: row.id,
