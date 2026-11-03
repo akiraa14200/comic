@@ -340,3 +340,21 @@ body{padding-bottom:104px}
 @media(prefers-reduced-motion:reduce){
  .hero-carousel-controls button{transition:none}
 }
+
+
+/* YouTube-style split video catalogue */
+.video-shorts-section,.video-regular-section{margin-top:34px}
+.video-shorts-row{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(142px,178px);gap:14px;overflow-x:auto;padding:2px 2px 14px;scroll-snap-type:x mandatory;overscroll-behavior-x:contain}
+.video-shorts-row .video-trailer-card{scroll-snap-align:start}
+.video-short-card .video-trailer-image{aspect-ratio:9/16;border-radius:12px;background:#171820}
+.video-short-card .video-trailer-title{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:32px}
+.video-short-card .video-trailer-meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.video-short-badge{position:absolute;left:8px;top:8px;padding:4px 7px;border-radius:5px;background:#111c;color:#fff;font-size:8px;font-weight:800;letter-spacing:.08em}
+.video-regular-card .video-trailer-image{aspect-ratio:16/9;border-radius:11px}
+.video-regular-card .video-trailer-title{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:32px}
+.video-regular-card .video-trailer-meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:600px){
+ .video-shorts-row{grid-auto-columns:minmax(132px,42vw);gap:11px}
+ .video-shorts-section,.video-regular-section{margin-top:26px}
+ .video-regular-section .video-trailer-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
