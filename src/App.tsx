@@ -276,12 +276,32 @@ function DetailPage({ user }: { user: User | null }) {
         {characterError && <p className="metadata-error">{characterError}</p>}
         {anime.characters?.pageInfo.hasNextPage && <button className="secondary-btn load-characters-btn" onClick={loadMoreCharacters} disabled={loadingCharacters}>{loadingCharacters?'Loading…':'Load more characters'} <ChevronDown size={15}/></button>}
         {selectedCharacter && <div className="character-modal-backdrop" role="presentation" onClick={()=>setSelectedCharacter(null)}>
-          <section className="character-modal" role="dialog" aria-modal="true" aria-label={selectedCharacter.name.full || 'Character details'} onClick={event=>event.stopPropagation()}>
+          <section className="character-modal character-profile-modal" role="dialog" aria-modal="true" aria-label={selectedCharacter.name.full || 'Character details'} onClick={event=>event.stopPropagation()}>
             <button className="character-modal-close" onClick={()=>setSelectedCharacter(null)} aria-label="Close character details"><X size={18}/></button>
-            <div className="character-modal-top"><img src={selectedCharacter.image?.large || selectedCharacter.image?.medium || ''} alt={selectedCharacter.name.full || 'Character'} onError={event=>{event.currentTarget.style.visibility='hidden';}}/><div><span className="eyebrow">CHARACTER PROFILE</span><h2>{selectedCharacter.name.full || 'Unknown character'}</h2>{selectedCharacter.name.native && <p>{selectedCharacter.name.native}</p>}<span className="character-role">{anime.characters?.edges.find(edge=>edge.node.id===selectedCharacter.id)?.role || 'Character'}</span></div></div>
-            <div className="character-facts">{selectedCharacter.gender && <span><strong>Gender</strong>{selectedCharacter.gender}</span>}{selectedCharacter.age && <span><strong>Age</strong>{selectedCharacter.age}</span>}{selectedCharacter.dateOfBirth && <span><strong>Birthday</strong>{[selectedCharacter.dateOfBirth.month,selectedCharacter.dateOfBirth.day].filter(Boolean).join('/') || 'Not listed'}</span>}{selectedCharacter.favourites ? <span><strong>Favorites</strong>{selectedCharacter.favourites.toLocaleString()}</span> : null}</div>
-            <div className="character-bio">{cleanDescription(selectedCharacter.description) || 'No biography is available for this character yet.'}</div>
-            {selectedCharacter.siteUrl && <a className="secondary-btn" href={selectedCharacter.siteUrl} target="_blank" rel="noreferrer">Full character profile <ExternalLink size={14}/></a>}
+            <div className="character-modal-top character-profile-header">
+              <img src={selectedCharacter.image?.large || selectedCharacter.image?.medium || ''} alt={selectedCharacter.name.full || 'Character'} loading="lazy" onError={event=>{event.currentTarget.style.visibility='hidden';}}/>
+              <div className="character-profile-heading">
+                <span className="eyebrow">CHARACTER PROFILE</span>
+                <h2>{selectedCharacter.name.full || 'Unknown character'}</h2>
+                {selectedCharacter.name.native && <p className="character-native-name">{selectedCharacter.name.native}</p>}
+                <span className="character-role">{anime.characters?.edges.find(edge=>edge.node.id===selectedCharacter.id)?.role || selectedCharacter.role || 'Character'}</span>
+                {!!selectedCharacter.name.alternative?.length && <p className="character-aliases">Also known as: {selectedCharacter.name.alternative.join(' · ')}</p>}
+              </div>
+            </div>
+            <section className="character-profile-section">
+              <div className="character-profile-section-title"><span>01</span><h3>Profile information</h3></div>
+              <div className="character-facts character-facts-grid">
+                <span><strong>Gender</strong>{selectedCharacter.gender || 'Not listed'}</span>
+                <span><strong>Age</strong>{selectedCharacter.age || 'Not listed'}</span>
+                <span><strong>Birthday</strong>{selectedCharacter.dateOfBirth && (selectedCharacter.dateOfBirth.month || selectedCharacter.dateOfBirth.day) ? [selectedCharacter.dateOfBirth.month,selectedCharacter.dateOfBirth.day].filter(Boolean).join('/') : 'Not listed'}</span>
+                <span><strong>Favorites</strong>{typeof selectedCharacter.favourites === 'number' ? selectedCharacter.favourites.toLocaleString() : 'Not listed'}</span>
+              </div>
+            </section>
+            <section className="character-profile-section">
+              <div className="character-profile-section-title"><span>02</span><h3>Biography</h3></div>
+              <div className="character-bio">{cleanDescription(selectedCharacter.description) || 'No biography is available for this character yet.'}</div>
+            </section>
+            {selectedCharacter.siteUrl && <a className="secondary-btn character-source-link" href={selectedCharacter.siteUrl} target="_blank" rel="noreferrer">View full AniList profile <ExternalLink size={14}/></a>}
           </section>
         </div>}
       </section>}
