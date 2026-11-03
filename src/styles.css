@@ -128,3 +128,78 @@
 .anime-session-note{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 9px;padding:0 3px;color:#898795;font-size:10px}
 .anime-session-note strong{color:#dcd8e8}
 .anime-session-note button{border:0;background:none;color:#aaa0ff;font-size:10px;padding:5px}
+
+
+/* Four-tab anime entry layout */
+.entry-tabs{display:flex;align-items:center;gap:7px;margin:34px 0 0;padding:0 0 12px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.entry-tabs::-webkit-scrollbar{display:none}
+.entry-tab{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;padding:11px 16px;border:1px solid transparent;border-radius:10px;background:transparent;color:#898795;font-size:11px;font-weight:650;transition:.2s}
+.entry-tab:hover{color:#e5e1f3;background:#ffffff08}
+.entry-tab.active{color:#c7bbff;background:#a99bff13;border-color:#a99bff30}
+.entry-tab small{font-size:9px;color:#8c83c7;background:#a99bff12;border-radius:20px;padding:2px 6px}
+.entry-panel{padding:26px 0 8px;min-height:260px}
+.entry-section-heading{margin-bottom:20px}
+.entry-section-heading h2{font:800 24px Manrope;letter-spacing:-.04em;margin:7px 0;color:#f1eef9}
+.entry-section-heading h2 small{font:600 11px inherit;color:#9e95d6;margin-left:6px}
+.entry-section-heading p{font-size:11px;color:#888693;margin:0}
+.overview-description{max-width:1000px;color:#c3bfce;font-size:13px;line-height:1.9;white-space:pre-line;overflow-wrap:anywhere}
+.overview-trailer{margin-top:35px}
+.overview-trailer .entry-section-heading h2{font-size:20px}
+.entry-trailer-frame{width:min(100%,900px);aspect-ratio:16/9;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:#050507}
+.entry-trailer-frame iframe{width:100%;height:100%;border:0;display:block}
+.entry-empty{display:flex;align-items:center;gap:11px;flex-wrap:wrap;min-height:90px;padding:20px;border:1px dashed #ffffff20;border-radius:12px;color:#8e8b99;font-size:11px}
+.entry-empty>svg{color:#aaa0ff}
+.entry-empty a,.entry-source-links a{display:inline-flex;align-items:center;gap:6px;color:#b8adff;font-size:10px;text-decoration:none}
+.entry-character-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:17px 13px}
+.entry-character-card{min-width:0;overflow:hidden;padding:0 0 10px;border:1px solid #ffffff12;border-radius:12px;background:#11131b;color:#eee;text-align:left;transition:transform .2s,border-color .2s}
+.entry-character-card:hover{transform:translateY(-3px);border-color:#a99bff66}
+.entry-character-card>img{display:block;width:100%;aspect-ratio:4/5;object-fit:cover;background:#1b1d27}
+.entry-character-name{display:block;padding:9px 9px 0;font-size:11px;font-weight:700;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.entry-character-card small{display:block;padding:4px 9px 0;color:#858391;font-size:9px;text-transform:capitalize}
+.load-characters-btn{margin:20px auto 0;display:flex;width:max-content}
+.metadata-error{color:#ffaaaa;font-size:11px}
+.character-modal-backdrop{position:fixed;z-index:1000;inset:0;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(9px)}
+.character-modal{position:relative;width:min(100%,620px);max-height:min(88dvh,850px);overflow:auto;padding:25px;border:1px solid #ffffff20;border-radius:18px;background:#11131c;box-shadow:0 25px 90px #000b}
+.character-modal-close{position:absolute;right:14px;top:14px;width:34px;height:34px;display:grid;place-items:center;border:1px solid #ffffff1a;border-radius:9px;background:#ffffff08;color:#ddd}
+.character-modal-top{display:flex;align-items:center;gap:18px;padding-right:28px}
+.character-modal-top>img{width:112px;height:145px;object-fit:cover;border-radius:11px;background:#20222d}
+.character-modal-top h2{font:800 23px Manrope;line-height:1.2;margin:8px 0;color:#f3f0fa}
+.character-modal-top p{font-size:11px;color:#a7a2b4;margin:0 0 9px}
+.character-role{display:inline-block;padding:5px 8px;border-radius:6px;background:#a99bff15;color:#bcb0ff;font-size:9px;text-transform:capitalize}
+.character-facts{display:flex;flex-wrap:wrap;gap:10px;margin:19px 0;padding:13px 0;border-top:1px solid #ffffff14;border-bottom:1px solid #ffffff14}
+.character-facts span{display:grid;gap:4px;min-width:85px;color:#d8d3e2;font-size:11px}
+.character-facts strong{color:#858291;font-size:9px;font-weight:500}
+.character-bio{color:#c2becd;font-size:12px;line-height:1.8;white-space:pre-line;overflow-wrap:anywhere}
+.character-voice-actors{margin-top:22px}
+.character-voice-actors h3,.entry-source-links h3{display:flex;align-items:center;gap:7px;color:#e5e1ee;font:700 13px Manrope;margin:0 0 11px}
+.character-voice-actors>span{display:inline-flex;align-items:center;gap:7px;margin:0 12px 8px 0;color:#bdb8c9;font-size:10px}
+.character-voice-actors img{width:25px;height:25px;object-fit:cover;border-radius:50%}
+.character-modal>.secondary-btn{margin-top:18px;width:max-content}
+.entry-details-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px;border-top:1px solid #ffffff13}
+.entry-details-grid>div{display:grid;gap:7px;padding:15px 0;border-bottom:1px solid #ffffff13;min-width:0}
+.entry-details-grid>div>span{color:#858391;font-size:10px}
+.entry-details-grid>div>strong{color:#dcd8e6;font-size:12px;font-weight:600;line-height:1.6;overflow-wrap:anywhere;text-transform:capitalize}
+.entry-details-grid .detail-wide{grid-column:1/-1}
+.entry-source-links{margin-top:25px}
+.entry-source-links>div{display:flex;flex-wrap:wrap;gap:9px}
+.entry-source-links a{padding:8px 10px;border:1px solid #a99bff22;border-radius:8px;background:#a99bff0b}
+.entry-comments-panel .anime-discussion{margin-top:22px}
+.metadata-loading-note{text-align:center;color:#858391;font-size:11px;margin-top:12px}
+@media(max-width:900px){.entry-character-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
+@media(max-width:650px){
+ .entry-tabs{margin-top:24px;gap:3px}
+ .entry-tab{padding:10px 11px;font-size:10px;gap:6px}
+ .entry-panel{padding-top:21px}
+ .entry-section-heading h2{font-size:21px}
+ .overview-description{font-size:11px;line-height:1.8}
+ .entry-character-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:11px 9px}
+ .entry-character-name{font-size:10px;padding:8px 7px 0}
+ .entry-character-card small{padding:4px 7px 0}
+ .character-modal{padding:19px 15px;border-radius:14px}
+ .character-modal-top{gap:12px}
+ .character-modal-top>img{width:84px;height:112px}
+ .character-modal-top h2{font-size:18px}
+ .character-bio{font-size:11px}
+ .entry-details-grid{grid-template-columns:1fr;gap:0}
+ .entry-details-grid .detail-wide{grid-column:auto}
+}
