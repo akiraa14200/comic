@@ -118,7 +118,7 @@ export function ExtensionPage() {
     if (!safeHttps(base)) throw new Error('Repository must use a valid HTTPS URL.');
     const explicitPb = /\.pb$/i.test(raw.trim());
     const explicitJson = /\.json$/i.test(raw.trim());
-    const candidates = explicitPb ? [raw.trim()] : explicitJson ? [raw.trim()] : [base + '/index.pb', base + '/index.min.json', base + '/index.json'];
+    const candidates = explicitPb ? [raw.trim(), base + '/index.min.json', base + '/index.json'] : explicitJson ? [raw.trim()] : [base + '/index.pb', base + '/index.min.json', base + '/index.json'];
     let lastError = 'Repository index not found.';
     for (const target of candidates) {
       try {
