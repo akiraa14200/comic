@@ -41,7 +41,6 @@ export type Anime = {
   source?: string;
   synonyms?: string[];
   startDate?: { year?: number; month?: number; day?: number };
-  staff?: { edges: AnimeStaff[] };
   externalLinks?: AnimeExternalLink[];
   characters?: {
     pageInfo: { currentPage: number; hasNextPage: boolean };
