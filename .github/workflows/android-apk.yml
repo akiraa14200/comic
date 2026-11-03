@@ -64,7 +64,7 @@ jobs:
               source = source.rstrip()
               if not source.endswith("}"):
                   raise SystemExit("Unexpected MainActivity.java structure")
-              source = source[:-1] + method + "\\n}\\n"
+              source = source[:-1] + method + chr(10) + "}" + chr(10)
               path.write_text(source)
           print("Enabled first-tap media playback in", path)
           PY
