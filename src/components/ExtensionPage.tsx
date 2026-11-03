@@ -4,15 +4,101 @@ import { Download, Plus, RefreshCw, Trash2, Puzzle, ExternalLink, ShieldAlert, S
 type ExtensionEntry = {
   id: string; name: string; version: string; description?: string; lang?: string;
   nsfw?: boolean; type?: 'web' | 'apk'; manifest?: string; apk?: string;
-  icon?: string; site?: string; source?: string;
+  icon?: string; site?: string; source?: string; packageName?: string;
+  sourceCount?: number; repoFormat?: 'json' | 'protobuf';
 };
-type Repo = { id: string; url: string; name: string; extensions: ExtensionEntry[]; updatedAt: number };
+type Repo = { id: string; url: string; name: string; extensions: ExtensionEntry[]; updatedAt: number; format?: string };
 const REPOS_KEY = 'rykoccllection-extension-repositories-v1';
 const INSTALLED_KEY = 'rykoccllection-installed-extensions-v1';
 const read = <T,>(key: string, fallback: T): T => { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) as T : fallback; } catch { return fallback; } };
 const safeHttps = (value: string) => { try { return new URL(value).protocol === 'https:'; } catch { return false; } };
-const repoUrl = (raw: string) => raw.trim().replace(/\/$/, '');
+const repoUrl = (raw: string) => raw.trim().replace(/\/$/, '').replace(/\/index\.(?:min\.)?(?:json|pb)$/i, '');
 const resolveUrl = (base: string, path?: string) => { if (!path) return ''; try { return new URL(path, base).toString(); } catch { return ''; } };
+
+type ProtoField = { number: number; wire: number; bytes?: Uint8Array; value?: number };
+const readVarint = (bytes: Uint8Array, start: number): { value: number; next: number } => {
+  let value = 0; let shift = 0; let offset = start;
+  while (offset < bytes.length && shift < 53) {
+    const byte = bytes[offset++];
+    value += (byte & 0x7f) * Math.pow(2, shift);
+    if ((byte & 0x80) === 0) return { value, next: offset };
+    shift += 7;
+  }
+  throw new Error('Invalid Protocol Buffers varint.');
+};
+const readProtoFields = (bytes: Uint8Array): ProtoField[] => {
+  const fields: ProtoField[] = []; let offset = 0;
+  while (offset < bytes.length) {
+    const tag = readVarint(bytes, offset); offset = tag.next;
+    const number = Math.floor(tag.value / 8); const wire = tag.value & 7;
+    if (!number) throw new Error('Invalid Protocol Buffers field number.');
+    if (wire === 0) {
+      const item = readVarint(bytes, offset); offset = item.next;
+      fields.push({ number, wire, value: item.value });
+    } else if (wire === 2) {
+      const length = readVarint(bytes, offset); offset = length.next;
+      if (length.value < 0 || offset + length.value > bytes.length) throw new Error('Truncated Protocol Buffers field.');
+      fields.push({ number, wire, bytes: bytes.subarray(offset, offset + length.value) }); offset += length.value;
+    } else if (wire === 1) {
+      if (offset + 8 > bytes.length) throw new Error('Truncated Protocol Buffers fixed64 field.');
+      offset += 8;
+    } else if (wire === 5) {
+      if (offset + 4 > bytes.length) throw new Error('Truncated Protocol Buffers fixed32 field.');
+      offset += 4;
+    } else {
+      throw new Error('Unsupported Protocol Buffers wire type: ' + wire);
+    }
+  }
+  return fields;
+};
+const fieldBytes = (fields: ProtoField[], number: number) => fields.find(field => field.number === number && field.wire === 2)?.bytes;
+const fieldText = (fields: ProtoField[], number: number) => { const bytes = fieldBytes(fields, number); return bytes ? new TextDecoder().decode(bytes) : ''; };
+const fieldNumber = (fields: ProtoField[], number: number) => fields.find(field => field.number === number && field.wire === 0)?.value ?? 0;
+const repeatedBytes = (fields: ProtoField[], number: number) => fields.filter(field => field.number === number && field.wire === 2 && field.bytes).map(field => field.bytes as Uint8Array);
+const decodeKeiyoushiIndex = (bytes: Uint8Array, base: string): { name: string; extensions: ExtensionEntry[] } => {
+  const root = readProtoFields(bytes);
+  const name = fieldText(root, 1) || new URL(base).hostname;
+  const list = fieldBytes(root, 101);
+  if (!list) throw new Error('The protobuf index does not contain an extension list (field 101).');
+  const listFields = readProtoFields(list);
+  const extensions = repeatedBytes(listFields, 1).map((encoded): ExtensionEntry | null => {
+    const ext = readProtoFields(encoded);
+    const packageName = fieldText(ext, 2);
+    const version = fieldText(ext, 6);
+    const extName = fieldText(ext, 1);
+    const resourcesBytes = fieldBytes(ext, 3);
+    if (!packageName || !version || !extName || !resourcesBytes) return null;
+    const resources = readProtoFields(resourcesBytes);
+    const apkPath = fieldText(resources, 1);
+    if (!apkPath) return null;
+    const sourceList = repeatedBytes(ext, 8).map(encodedSource => {
+      const source = readProtoFields(encodedSource);
+      return { name: fieldText(source, 2), lang: fieldText(source, 3), baseUrl: fieldText(source, 4) };
+    });
+    const languageSet = [...new Set(sourceList.map(source => source.lang).filter(Boolean))];
+    const warning = fieldNumber(ext, 7);
+    return {
+      id: packageName, packageName, name: extName, version, type: 'apk',
+      apk: resolveUrl(base, apkPath),
+      icon: resolveUrl(base, fieldText(resources, 2) || 'icon/' + packageName + '.png'),
+      lang: languageSet.length === 1 ? languageSet[0] : languageSet.length ? 'multiple' : 'unknown',
+      nsfw: warning >= 2, sourceCount: sourceList.length, repoFormat: 'protobuf',
+      description: sourceList.length ? sourceList.length + ' source(s) · Extension library ' + (fieldText(ext, 4) || 'unknown') : 'Android source extension',
+    };
+  }).filter((item): item is ExtensionEntry => Boolean(item) && !item!.nsfw && safeHttps(item!.apk || ''));
+  return { name, extensions };
+};
+const fetchBytes = async (url: string): Promise<Uint8Array> => {
+  const response = await fetch(url, { headers: { Accept: 'application/octet-stream, application/x-protobuf, */*' }, cache: 'no-store' });
+  if (!response.ok) throw new Error('Repository returned HTTP ' + response.status + ' for ' + new URL(url).pathname);
+  let bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
+    if (typeof DecompressionStream === 'undefined') throw new Error('This browser cannot decompress the repository index.');
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+    bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  return bytes;
+};
 
 export function ExtensionPage() {
   const [repos, setRepos] = useState<Repo[]>(() => read(REPOS_KEY, []));
@@ -28,27 +114,37 @@ export function ExtensionPage() {
   const visible = extensions.filter(item => (tab === 'all' || tab === 'installed' || item.type === tab) && (tab !== 'installed' || installed.includes(item.id)) && (item.name+' '+(item.description||'')+' '+(item.lang||'')).toLowerCase().includes(filter.toLowerCase()));
 
   const readIndex = async (raw: string): Promise<Repo> => {
-    const url = repoUrl(raw);
-    if (!safeHttps(url)) throw new Error('Repository must use a valid HTTPS URL.');
-    const candidates = [/\.json$/i.test(url) ? url : '', url + '/index.min.json', url + '/index.json'].filter(Boolean);
+    const base = repoUrl(raw);
+    if (!safeHttps(base)) throw new Error('Repository must use a valid HTTPS URL.');
+    const explicitPb = /\.pb$/i.test(raw.trim());
+    const explicitJson = /\.json$/i.test(raw.trim());
+    const candidates = explicitPb ? [raw.trim()] : explicitJson ? [raw.trim()] : [base + '/index.pb', base + '/index.min.json', base + '/index.json'];
     let lastError = 'Repository index not found.';
     for (const target of candidates) {
       try {
+        if (/\.pb(?:\?|$)/i.test(target)) {
+          const decoded = decodeKeiyoushiIndex(await fetchBytes(target), base);
+          if (!decoded.extensions.length) throw new Error('The protobuf index was read, but it contains no supported non-restricted Android extensions.');
+          return { id: base, url: base, name: decoded.name, extensions: decoded.extensions, updatedAt: Date.now(), format: 'Protocol Buffers (index.pb)' };
+        }
         const response = await fetch(target, { headers: { Accept: 'application/json' }, cache: 'no-store' });
-        if (!response.ok) { lastError = 'Repository returned HTTP ' + response.status; continue; }
+        if (!response.ok) { lastError = 'Repository returned HTTP ' + response.status + ' for ' + new URL(target).pathname; continue; }
         const data = await response.json() as { name?: string; extensions?: ExtensionEntry[] };
-        if (!Array.isArray(data.extensions)) { lastError = 'Invalid index: expected an extensions array.'; continue; }
+        if (!Array.isArray(data.extensions)) { lastError = 'Invalid JSON index: expected an extensions array.'; continue; }
         const ids = new Set<string>();
         const valid = data.extensions.filter(item => {
-          if (!item || typeof item.id !== 'string' || typeof item.name !== 'string' || typeof item.version !== 'string' || ids.has(item.id)) return false;
+          if (!item || typeof item.id !== 'string' || typeof item.name !== 'string' || typeof item.version !== 'string' || ids.has(item.id) || item.nsfw) return false;
           ids.add(item.id);
           if (item.type === 'apk') return typeof item.apk === 'string' && safeHttps(resolveUrl(target, item.apk));
           return item.type === 'web' && typeof item.manifest === 'string' && safeHttps(resolveUrl(target, item.manifest));
         }).map(item => ({...item, manifest: item.manifest ? resolveUrl(target,item.manifest) : undefined, apk: item.apk ? resolveUrl(target,item.apk) : undefined}));
-        return { id: url, url: target, name: data.name || new URL(url).host, extensions: valid, updatedAt: Date.now() };
-      } catch (error) { lastError = error instanceof Error ? error.message : lastError; }
+        return { id: base, url: base, name: data.name || new URL(base).host, extensions: valid, updatedAt: Date.now(), format: 'JSON' };
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : 'Could not read repository index.';
+        if (/Failed to fetch|NetworkError|Load failed/i.test(lastError)) lastError = 'Could not reach the repository from this browser. The host may block CORS requests.';
+      }
     }
-    throw new Error(lastError + ' Check that the host permits browser CORS requests.');
+    throw new Error(lastError);
   };
 
   const addRepository = async () => {
@@ -58,13 +154,13 @@ export function ExtensionPage() {
       const repo = await readIndex(repoInput);
       setRepos(old => [...old.filter(item => item.id !== repo.id), repo]);
       setRepoInput('');
-      setNotice('Repository added: ' + repo.name + ' (' + repo.extensions.length + ' compatible extensions).');
+      setNotice('Repository added: ' + repo.name + ' (' + repo.extensions.length + ' supported extensions · ' + repo.format + ').');
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not add repository.'); }
     finally { setBusy(false); }
   };
   const refreshRepo = async (repo: Repo) => {
     setBusy(true); setNotice('');
-    try { const updated = await readIndex(repo.id); setRepos(old => old.map(item => item.id === repo.id ? updated : item)); setNotice('Repository refreshed.'); }
+    try { const updated = await readIndex(repo.id); setRepos(old => old.map(item => item.id === repo.id ? updated : item)); setNotice('Repository refreshed: ' + updated.extensions.length + ' supported extensions.'); }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Refresh failed.'); }
     finally { setBusy(false); }
   };
@@ -91,14 +187,14 @@ export function ExtensionPage() {
   const removeExtension = (id:string) => { localStorage.removeItem('rykoccllection-web-extension:'+id); setInstalled(old=>old.filter(value=>value!==id)); setNotice('Extension removed from this device.'); };
 
   return <main className="content-page extension-page">
-    <div className="page-heading"><span className="eyebrow">MANGA READER · SOURCE MANAGER</span><h1>Extensions <em>hub.</em></h1><p>Add repositories, discover community sources and manage compatible reader extensions.</p></div>
-    <div className="extension-warning"><ShieldAlert size={18}/><p>Only add repositories you trust. Extensions can expose browsing activity to their source providers. APK installation is handled separately by Android and always requires your confirmation.</p></div>
-    <section className="extension-repo-card"><div><span className="eyebrow">REPOSITORY MANAGER</span><h2>Add extension repository</h2><p>Paste an HTTPS repository URL that provides an index.json or index.min.json file.</p></div><div className="extension-add-row"><input value={repoInput} onChange={event=>setRepoInput(event.target.value)} placeholder="https://example.org/extensions" inputMode="url"/><button className="primary-btn" onClick={()=>void addRepository()} disabled={busy||!repoInput.trim()}><Plus size={16}/>{busy?'Checking…':'Add repository'}</button></div>
-    {repos.length>0 && <div className="extension-repo-list">{repos.map(repo=><div className="extension-repo" key={repo.id}><div><strong>{repo.name}</strong><span>{repo.extensions.length} compatible extensions · {new URL(repo.url).host}</span></div><button title="Refresh repository" onClick={()=>void refreshRepo(repo)} disabled={busy}><RefreshCw size={16}/></button><button title="Remove repository" onClick={()=>setRepos(old=>old.filter(item=>item.id!==repo.id))}><Trash2 size={16}/></button></div>)}</div>}</section>
+    <div className="page-heading"><span className="eyebrow">MANGA READER · SOURCE MANAGER</span><h1>Extensions <em>hub.</em></h1><p>Add JSON web sources and Mihon-compatible Android extension repositories.</p></div>
+    <div className="extension-warning"><ShieldAlert size={18}/><p>Only add repositories you trust. Extensions can expose browsing activity to their source providers. Restricted-content extensions are hidden. Android APKs are downloaded only; this web interface does not silently install or execute APK packages.</p></div>
+    <section className="extension-repo-card"><div><span className="eyebrow">REPOSITORY MANAGER</span><h2>Add extension repository</h2><p>Supports index.pb (Protocol Buffers), index.min.json and index.json.</p></div><div className="extension-add-row"><input value={repoInput} onChange={event=>setRepoInput(event.target.value)} placeholder="https://github.com/keiyoushi/extensions/raw/repo/index.pb" inputMode="url"/><button className="primary-btn" onClick={()=>void addRepository()} disabled={busy||!repoInput.trim()}><Plus size={16}/>{busy?'Checking…':'Add repository'}</button></div>
+    {repos.length>0 && <div className="extension-repo-list">{repos.map(repo=><div className="extension-repo" key={repo.id}><div><strong>{repo.name}</strong><span>{repo.extensions.length} supported extensions · {repo.format || new URL(repo.url).host}</span></div><button title="Refresh repository" onClick={()=>void refreshRepo(repo)} disabled={busy}><RefreshCw size={16}/></button><button title="Remove repository" onClick={()=>setRepos(old=>old.filter(item=>item.id!==repo.id))}><Trash2 size={16}/></button></div>)}</div>}</section>
     {notice && <p className="extension-notice" role="status">{notice}</p>}
     <div className="extension-toolbar"><label className="large-search"><Search size={17}/><input value={filter} onChange={event=>setFilter(event.target.value)} placeholder="Search extensions…"/></label><div className="extension-tabs">{(['all','web','apk','installed'] as const).map(value=><button key={value} className={tab===value?'active':''} onClick={()=>setTab(value)}>{value==='all'?'All':value==='web'?'Web':value==='apk'?'Android APK':'Installed'}</button>)}</div></div>
-    <div className="extension-grid">{visible.map(item=><article className="extension-card" key={item.id}><div className="extension-card-icon"><Puzzle size={22}/></div><div className="extension-card-main"><div className="extension-card-title"><h3>{item.name}</h3><span className="extension-type">{item.type==='apk'?'ANDROID APK':'WEB SOURCE'}</span></div><p>{item.description||'Community manga source extension.'}</p><div className="extension-meta"><span>{item.lang||'Unknown language'}</span><span>v{item.version}</span>{item.nsfw && <span>Restricted content</span>}</div><div className="extension-actions">{item.type==='web' ? installed.includes(item.id) ? <button className="secondary-btn" onClick={()=>removeExtension(item.id)}>Uninstall</button> : <button className="primary-btn" disabled={busy} onClick={()=>void installWeb(item)}> <Download size={15}/> Install</button> : <a className="primary-btn" href={item.apk} target="_blank" rel="noopener noreferrer"><Download size={15}/> Download APK</a>}{item.site && <a className="secondary-btn" href={item.site} target="_blank" rel="noopener noreferrer">Website <ExternalLink size={13}/></a>}</div></div></article>)}</div>
-    {!visible.length && <div className="extension-empty"><Puzzle size={26}/><h3>{repos.length?'No extensions found':'No repositories added yet'}</h3><p>Add a compatible repository to discover web and Android extensions.</p></div>}
-    <div className="extension-help"><h3>Supported repository format</h3><p>Index JSON: <code>{'{ "name": "My Repo", "extensions": [{ "id": "source-id", "name": "Source", "version": "1.0.0", "type": "web", "manifest": "source/manifest.json" }] }'}</code></p><p>Web extensions use a declarative HTTPS source descriptor (API v1). They do not execute arbitrary remote JavaScript. APK entries provide a download link; Android verifies and installs the package through its own system installer.</p></div>
+    <div className="extension-grid">{visible.map(item=><article className="extension-card" key={item.id}><div className="extension-card-icon">{item.icon ? <img src={item.icon} alt="" /> : <Puzzle size={22}/>}</div><div className="extension-card-main"><div className="extension-card-title"><h3>{item.name}</h3><span className="extension-type">{item.type==='apk'?'ANDROID APK':'WEB SOURCE'}</span></div><p>{item.description||'Community source extension.'}</p><div className="extension-meta"><span>{item.lang||'Unknown language'}</span><span>v{item.version}</span>{item.sourceCount ? <span>{item.sourceCount} sources</span> : null}</div><div className="extension-actions">{item.type==='web' ? installed.includes(item.id) ? <button className="secondary-btn" onClick={()=>removeExtension(item.id)}>Uninstall</button> : <button className="primary-btn" disabled={busy} onClick={()=>void installWeb(item)}> <Download size={15}/> Install</button> : <a className="primary-btn" href={item.apk} target="_blank" rel="noopener noreferrer"><Download size={15}/> Download APK</a>}{item.site && <a className="secondary-btn" href={item.site} target="_blank" rel="noopener noreferrer">Website <ExternalLink size={13}/></a>}</div></div></article>)}</div>
+    {!visible.length && <div className="extension-empty"><Puzzle size={26}/><h3>{repos.length?'No extensions found':'No repositories added yet'}</h3><p>Add a supported repository to discover compatible sources.</p></div>}
+    <div className="extension-help"><h3>Repository compatibility</h3><p>Keiyoushi index.pb is decoded using its Protocol Buffers field layout. Compatible APK entries are listed with their source metadata and official download URL.</p><p>Important: listing and downloading an APK is not the same as loading it. Native Mihon/Yōkai extension execution requires a compatible Android extension runtime, which is not yet part of this Capacitor web app.</p></div>
   </main>;
 }
