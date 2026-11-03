@@ -404,3 +404,93 @@ body{padding-bottom:104px}
  .video-shorts-grid{gap:15px 10px;padding-left:3%;padding-right:3%}
  .video-feed-short .video-feed-details{padding-left:0;padding-right:0}
 }
+
+
+/* RykoTube — complete YouTube-inspired video experience */
+.yt-page{max-width:1180px;padding-top:18px}
+.yt-topbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:clamp(16px,5vw,64px);padding:12px 0 16px;background:rgba(10,10,12,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.yt-brand{display:flex;align-items:center;gap:8px;white-space:nowrap;color:#f8f8f8}
+.yt-brand-mark{width:31px;height:23px;display:grid;place-items:center;border-radius:7px;background:#f22;color:white}
+.yt-brand strong{font:800 19px Manrope,sans-serif;letter-spacing:-.8px}
+.yt-brand strong span{font-weight:500}
+.yt-brand small{align-self:flex-start;margin:1px 0 0 1px;color:#85858c;font-size:9px}
+.yt-search{height:42px;max-width:620px;flex:1;display:flex;align-items:center;gap:12px;padding:0 15px;border:1px solid #34343a;border-radius:30px;background:#171719;color:#aaa}
+.yt-search:focus-within{border-color:#777}
+.yt-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:#f4f4f4;font-size:13px}
+.yt-search button{display:grid;place-items:center;border:0;background:none;color:#bbb}
+.yt-filter-bar{position:sticky;top:66px;z-index:35;display:flex;gap:10px;overflow-x:auto;padding:10px 0 16px;background:rgba(10,10,12,.95);scrollbar-width:none}
+.yt-filter-bar::-webkit-scrollbar{display:none}
+.yt-filter-bar button{flex:none;padding:8px 14px;border:0;border-radius:8px;background:#27272a;color:#eee;font-size:12px;font-weight:650;cursor:pointer}
+.yt-filter-bar button.active{background:#f1f1f1;color:#171717}
+.yt-section{margin:16px 0 36px}
+.yt-section-heading{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:0 0 17px}
+.yt-section-heading h2{margin:0;color:#f6f6f6;font:750 22px Manrope,sans-serif;letter-spacing:-.6px}
+.yt-section-heading h2 .yt-shorts-symbol{display:inline-block;color:#ff3b30;transform:rotate(90deg);font-size:20px;margin-right:7px}
+.yt-section-heading p{margin:5px 0 0;color:#999;font-size:11px}
+.yt-section-heading>span{color:#8c8c92;font-size:10px;white-space:nowrap}
+.yt-video-feed{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px 18px}
+.yt-video-card{min-width:0;color:#f5f5f5}
+.yt-thumbnail{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:13px;background:#18181b}
+.yt-thumbnail iframe{width:100%;height:100%;display:block;border:0}
+.yt-thumbnail-button{position:absolute;inset:0;width:100%;height:100%;padding:0;border:0;background:#111;cursor:pointer;color:white}
+.yt-thumbnail-button img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .25s}
+.yt-video-card:hover .yt-thumbnail-button img{transform:scale(1.025)}
+.yt-play-overlay{position:absolute;inset:0;display:grid;place-items:center;background:#00000012;color:white;opacity:0;transition:opacity .2s}
+.yt-video-card:hover .yt-play-overlay{opacity:1}
+.yt-shorts-grid .yt-play-overlay{opacity:.25}
+.yt-shorts-grid .yt-video-card:hover .yt-play-overlay{opacity:1}
+.yt-thumbnail-fallback{display:block;width:100%;height:100%;background:linear-gradient(135deg,#202027,#101014)}
+.yt-shorts-label{position:absolute;top:9px;left:9px;padding:5px 7px;border-radius:5px;background:#101014c9;color:white;font-size:9px;font-weight:800;letter-spacing:.08em}
+.yt-video-info{display:flex;align-items:flex-start;gap:11px;padding:12px 2px 0}
+.yt-channel-avatar{width:37px;height:37px;flex:0 0 37px;border-radius:50%;object-fit:cover;background:#28282e}
+.yt-avatar-fallback{display:grid;place-items:center;color:#eee;font-weight:750}
+.yt-video-text{flex:1;min-width:0}
+.yt-video-text h3{margin:0 0 6px;color:#f5f5f5;font-size:14px;font-weight:650;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.yt-video-text p{margin:3px 0;color:#999;font-size:11px;line-height:1.4}
+.yt-more{width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:#aaa;cursor:pointer;font-size:18px;letter-spacing:1px}
+.yt-more:hover{background:#ffffff15;color:white}
+.yt-related{display:inline-flex;align-items:center;gap:5px;margin-top:5px;color:#b8aaff;font-size:10px;text-decoration:none}
+.yt-shorts-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.yt-short-card .yt-thumbnail{aspect-ratio:9/16;border-radius:12px}
+.yt-short-card .yt-video-info{gap:8px;padding-top:9px}
+.yt-short-card .yt-channel-avatar{width:29px;height:29px;flex-basis:29px}
+.yt-short-card .yt-video-text h3{font-size:11px;line-height:1.35}
+.yt-short-card .yt-video-text p{font-size:9px}
+.yt-short-card .yt-more{width:23px;height:23px;flex-basis:23px}
+.yt-unavailable{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;background:#111;color:#ddd;font-size:12px;text-align:center}
+.yt-unavailable a{display:inline-flex;align-items:center;gap:5px;color:#c4b8ff}
+.yt-empty{min-height:280px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:#999;text-align:center}
+.yt-empty h3{margin:4px 0 0;color:#eee;font-size:17px}
+.yt-empty p{margin:0;font-size:12px}
+.yt-disclaimer{margin:20px 0;color:#777;font-size:10px;line-height:1.5}
+@media(max-width:700px){
+ .yt-page{padding:7px 0 100px}
+ .yt-topbar{top:0;padding:10px 4%;gap:13px}
+ .yt-brand{gap:6px}
+ .yt-brand-mark{width:27px;height:21px}
+ .yt-brand strong{font-size:16px}
+ .yt-brand small{display:none}
+ .yt-search{height:38px;padding:0 11px;gap:8px}
+ .yt-search input{font-size:12px}
+ .yt-filter-bar{top:58px;padding:9px 4% 13px;gap:8px}
+ .yt-filter-bar button{font-size:11px;padding:8px 13px}
+ .yt-section{margin:14px 0 30px}
+ .yt-section-heading{padding:0 4%;margin-bottom:13px}
+ .yt-section-heading h2{font-size:19px}
+ .yt-section-heading p{font-size:10px}
+ .yt-video-feed{grid-template-columns:1fr;gap:22px}
+ .yt-thumbnail{border-radius:0}
+ .yt-video-info{padding:10px 4% 0;gap:10px}
+ .yt-channel-avatar{width:36px;height:36px;flex-basis:36px}
+ .yt-video-text h3{font-size:14px}
+ .yt-video-text p{font-size:10px}
+ .yt-shorts-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:17px 10px;padding:0 3%}
+ .yt-short-card .yt-thumbnail{border-radius:10px}
+ .yt-short-card .yt-video-info{padding:8px 1px 0;gap:7px}
+ .yt-short-card .yt-channel-avatar{width:27px;height:27px;flex-basis:27px}
+ .yt-short-card .yt-video-text h3{font-size:10px}
+ .yt-short-card .yt-video-text p{font-size:9px}
+ .yt-short-card .yt-more{display:none}
+ .yt-disclaimer{padding:0 4%}
+}
+@media(min-width:1000px){.yt-video-feed{grid-template-columns:repeat(3,minmax(0,1fr));gap:32px 20px}}
