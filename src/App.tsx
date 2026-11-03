@@ -405,6 +405,25 @@ function VideoPage() {
   const [format,setFormat]=useState<'all'|'video'|'short'>('all');
   const [category,setCategory]=useState('All');
   useEffect(()=>{let active=true;getRelatedVideos(1).then(data=>enrichVideoMetadata(data)).then(data=>{if(!active)return;setVideos(data);setHasMore(data.length===40);}).catch(e=>{if(active)setError(e instanceof Error?e.message:'Could not load videos.');}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[]);
+  useEffect(()=>{
+    const root=document.querySelector('.yt-page');
+    if(!root)return;
+    const cards=root.querySelectorAll('.yt-video-card');
+    if(!cards.length)return;
+    if(!('IntersectionObserver' in window)){
+      cards.forEach(card=>card.querySelectorAll<HTMLImageElement>('img[loading="lazy"]').forEach(img=>{img.loading='eager';}));
+      return;
+    }
+    const observer=new IntersectionObserver(entries=>{
+      entries.forEach(entry=>{
+        if(!entry.isIntersecting)return;
+        entry.target.querySelectorAll<HTMLImageElement>('img[loading="lazy"]').forEach(img=>{img.loading='eager';});
+        observer.unobserve(entry.target);
+      });
+    },{rootMargin:'280px 0px'});
+    cards.forEach(card=>observer.observe(card));
+    return()=>observer.disconnect();
+  },[videos,format,category,term]);
   const searchable=videos.filter(v=>[v.videoTitle,v.creatorName,v.titleName].join(' ').toLowerCase().includes(term.toLowerCase()));
   const categoryMatch=(v:RelatedVideo)=>category==='All'||(v.titleFormat||'').toLowerCase()===category.toLowerCase();
   const filtered=searchable.filter(categoryMatch);
