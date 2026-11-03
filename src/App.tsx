@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle } from 'lucide-react';
+import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Home as HomeIcon, UserRound, ChevronLeft } from 'lucide-react';
 // The application UI and page components are defined below.
 import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getSeasonal, getTrending, imageOf, searchAnime, titleOf } from './lib/anilist';
 import type { User } from '@supabase/supabase-js';
@@ -312,6 +312,57 @@ function VideoPage() {
     <p className="fine-print">RykocCllection displays trailer metadata from AniList and embeds YouTube previews. These are promotional videos, not full episodes. Playback, availability, content ratings and advertisements are controlled by YouTube and the video publisher. RykocCllection does not host video files or extract streams.</p>
   </main>;
 }
+
+function BottomNavigation() {
+  const location = useLocation();
+  const links = [
+    { to: '/', label: 'Home', icon: <HomeIcon size={19}/> },
+    { to: '/search', label: 'Browse', icon: <Compass size={19}/> },
+    { to: '/video', label: 'Video', icon: <Play size={19}/> },
+    { to: '/watchlist', label: 'Library', icon: <Bookmark size={19}/> },
+    { to: '/account', label: 'Account', icon: <UserRound size={19}/> }
+  ];
+  return <nav className="bottom-navigation" aria-label="Main navigation">{links.map(item => {
+    const active = item.to === '/' ? location.pathname === '/' : location.pathname === item.to;
+    return <Link key={item.to} to={item.to} className={active?'bottom-nav-item active':'bottom-nav-item'} aria-current={active?'page':undefined}>{item.icon}<span>{item.label}</span></Link>;
+  })}</nav>;
+}
+
+function AccountPage({ user }: { user: User | null }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [mode, setMode] = useState<'signin'|'signup'>('signin');
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault(); setBusy(true); setMessage('');
+    try {
+      if (mode === 'signup') {
+        const { error } = await supabase.auth.signUp({ email, password, options: { data: { display_name: displayName.trim() || email.split('@')[0] } } });
+        if (error) throw error;
+        setMessage('Account created. Check your email if confirmation is enabled.');
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        setMessage('Signed in successfully.');
+      }
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not complete sign in.'); }
+    finally { setBusy(false); }
+  };
+  return <main className="content-page account-page"><div className="page-heading"><span className="eyebrow">YOUR RYKOCCLLECTION PROFILE</span><h1>Your <em>Account.</em></h1><p>Sign in to join discussions and keep your profile connected.</p></div>
+    {user ? <section className="account-card"><div className="account-avatar">{String(user.user_metadata?.display_name || user.email || 'R').slice(0,1).toUpperCase()}</div><div><span className="eyebrow">SIGNED IN</span><h2>{String(user.user_metadata?.display_name || user.email?.split('@')[0] || 'Anime fan')}</h2><p>{user.email}</p><button className="secondary-btn" onClick={()=>void supabase.auth.signOut()}>Sign out</button></div></section> :
+    <form className="account-card account-form" onSubmit={submit}><div className="account-avatar"><UserRound/></div><h2>{mode==='signin'?'Welcome back':'Create your account'}</h2><p>{mode==='signin'?'Sign in to your RykocCllection account.':'Create a profile to participate in community features.'}</p>
+      {mode==='signup' && <input value={displayName} onChange={event=>setDisplayName(event.target.value)} placeholder="Display name" autoComplete="nickname"/>}
+      <input type="email" value={email} onChange={event=>setEmail(event.target.value)} placeholder="Email address" autoComplete="email" required/>
+      <input type="password" value={password} onChange={event=>setPassword(event.target.value)} placeholder="Password" autoComplete={mode==='signin'?'current-password':'new-password'} minLength={6} required/>
+      <button className="primary-btn" disabled={busy}>{busy?'Please wait…':mode==='signin'?'Sign in':'Create account'}</button>
+      <button type="button" className="account-switch" onClick={()=>{setMode(mode==='signin'?'signup':'signin');setMessage('');}}>{mode==='signin'?'New here? Create an account':'Already have an account? Sign in'}</button>
+      {message && <p className="account-message">{message}</p>}
+    </form>}
+  </main>;
+}
+
 function PrivacyPage() {
   const [protection, setProtection] = useState(()=>readStore('kairo-privacy', true));
   useEffect(()=>localStorage.setItem('kairo-privacy', JSON.stringify(protection)),[protection]);
@@ -335,5 +386,5 @@ export default function App() {
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
   const signOut = () => { void supabase.auth.signOut(); };
-  return <><Header user={user} onSignOut={signOut}/><Routes><Route path="/" element={<Home/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/anime/:id" element={<DetailPage user={user}/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Anime metadata via AniList · Independent fan discovery project</span></footer></>;
+  return <><Header user={user} onSignOut={signOut}/><Routes><Route path="/" element={<Home/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/anime/:id" element={<DetailPage user={user}/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Anime metadata via AniList · Independent fan discovery project</span></footer></>;
 }
