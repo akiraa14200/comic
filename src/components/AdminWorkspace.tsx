@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ShieldCheck, LayoutDashboard, BookOpen, Users, Flag, Link2, HardDrive, Plus, RefreshCw, Save, Trash2, Pencil, X, Search, Check, AlertCircle } from 'lucide-react';
+import { ShieldCheck, LayoutDashboard, BookOpen, Users, Flag, Link2, HardDrive, Plus, RefreshCw, Save, Trash2, Pencil, X, Search, Check, AlertCircle, Download } from 'lucide-react';
 
 type Tab = 'overview' | 'catalogue' | 'characters' | 'videos' | 'moderation' | 'reports' | 'settings' | 'storage';
 type TitleRow = { id:string; name:string; media_type:string; status:string; cover_url:string|null; banner_url:string|null; synopsis:string|null; genres:string[]|null; themes:string[]|null; alternative_names:string[]|null; release_year:number|null; rating:number|null; chapters:string|null; episodes:string|null; author:string|null; artist:string|null; studio:string|null; country:string|null; source_url:string|null; trailer_url:string|null; read_url:string|null; is_featured:boolean; is_trending:boolean; popularity:number|null };
