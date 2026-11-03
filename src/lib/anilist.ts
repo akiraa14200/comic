@@ -21,11 +21,18 @@ export type Anime = {
   bannerImage?: string;
   averageScore?: number;
   episodes?: number;
+  chapters?: number;
+  volumes?: number;
+  popularity?: number;
+  favourites?: number;
+  meanScore?: number;
+  hashtag?: string;
   status?: string;
   seasonYear?: number;
   format?: string;
   genres?: string[];
   studios?: { nodes: { name: string }[] };
+  staff?: { edges: AnimeStaff[] };
   duration?: number;
   siteUrl?: string;
   nextAiringEpisode?: { episode: number; airingAt: number };
@@ -45,7 +52,7 @@ export type Anime = {
 const endpoint = 'https://graphql.anilist.co';
 const fields = `
   id title { romaji english native } description(asHtml: false)
-  coverImage { extraLarge large color } bannerImage averageScore episodes
+  coverImage { extraLarge large color } bannerImage averageScore meanScore popularity favourites episodes chapters volumes
   status seasonYear format genres duration siteUrl
   studios(isMain: true) { nodes { name } }
   nextAiringEpisode { episode airingAt }
@@ -168,40 +175,40 @@ export async function getVideoCatalogue(page = 1, genre?: string): Promise<Anime
   return data.Page?.media || [];
 }
 
-export async function getTrending(): Promise<Anime[]> {
-  const data = await query<{ Page: { media: Anime[] } }>(`query { Page(perPage: 12) { media(type: ANIME, sort: TRENDING_DESC, isAdult: false) { ${fields} } } }`);
+export async function getTrending(type: 'ANIME' | 'MANGA' = 'ANIME'): Promise<Anime[]> {
+  const data = await query<{ Page: { media: Anime[] } }>(`query($type: MediaType!) { Page(perPage: 12) { media(type: $type, sort: TRENDING_DESC, isAdult: false) { ${fields} } } }`, {type});
   return data.Page?.media || [];
 }
 
-export async function getPopular(): Promise<Anime[]> {
-  const data = await query<{ Page: { media: Anime[] } }>(`query { Page(perPage: 12) { media(type: ANIME, sort: POPULARITY_DESC, isAdult: false) { ${fields} } } }`);
+export async function getPopular(type: 'ANIME' | 'MANGA' = 'ANIME'): Promise<Anime[]> {
+  const data = await query<{ Page: { media: Anime[] } }>(`query($type: MediaType!) { Page(perPage: 12) { media(type: $type, sort: POPULARITY_DESC, isAdult: false) { ${fields} } } }`, {type});
   return data.Page?.media || [];
 }
 
-export async function getSeasonal(): Promise<Anime[]> {
+export async function getSeasonal(type: 'ANIME' | 'MANGA' = 'ANIME'): Promise<Anime[]> {
   const now = new Date();
   const month = now.getMonth();
   const season = month < 3 ? 'WINTER' : month < 6 ? 'SPRING' : month < 9 ? 'SUMMER' : 'FALL';
   const data = await query<{ Page: { media: Anime[] } }>(
-    `query($season: MediaSeason!, $year: Int!) { Page(perPage: 12) { media(type: ANIME, season: $season, seasonYear: $year, sort: POPULARITY_DESC, isAdult: false) { ${fields} } } }`,
-    { season, year: now.getFullYear() }
+    `query($season: MediaSeason!, $year: Int!, $type: MediaType!) { Page(perPage: 12) { media(type: $type, season: $season, seasonYear: $year, sort: POPULARITY_DESC, isAdult: false) { ${fields} } } }`,
+    { season, year: now.getFullYear(), type }
   );
   return data.Page?.media || [];
 }
 
-export async function searchAnime(search: string, page = 1, genre?: string, status?: string, format?: string): Promise<Anime[]> {
+export async function searchAnime(search: string, page = 1, genre?: string, status?: string, format?: string, type: 'ANIME' | 'MANGA' = 'ANIME'): Promise<Anime[]> {
   const data = await query<{ Page: { media: Anime[] } }>(
-    `query($search: String, $page: Int, $genre: String, $status: MediaStatus, $format: MediaFormat) { Page(page: $page, perPage: 50) { media(type: ANIME, search: $search, genre: $genre, status: $status, format: $format, sort: SEARCH_MATCH, isAdult: false) { ${fields} } } }`,
-    { search: search || undefined, page, genre: genre || undefined, status: status || undefined, format: format || undefined }
+    `query($search: String, $page: Int, $genre: String, $status: MediaStatus, $format: MediaFormat, $type: MediaType!) { Page(page: $page, perPage: 50) { media(type: $type, search: $search, genre: $genre, status: $status, format: $format, sort: SEARCH_MATCH, isAdult: false) { ${fields} } } }`,
+    { search: search || undefined, page, genre: genre || undefined, status: status || undefined, format: format || undefined, type }
   );
   return data.Page?.media || [];
 }
 
-export async function getAnime(id: number): Promise<Anime | null> {
+export async function getAnime(id: number, type: 'ANIME' | 'MANGA' = 'ANIME'): Promise<Anime | null> {
   if (!Number.isInteger(id) || id <= 0) return null;
   const data = await query<{ Media: Anime | null }>(
-    `query($id: Int) { Media(id: $id, type: ANIME) { ${detailFields} } }`,
-    { id },
+    `query($id: Int, $type: MediaType!) { Media(id: $id, type: $type) { ${detailFields} } }`,
+    { id, type },
     DETAIL_CACHE_TTL
   );
   return data.Media || null;
@@ -219,7 +226,7 @@ export async function getAnimeCharacters(id: number, page: number): Promise<NonN
   return data.Media?.characters || { pageInfo: { currentPage: page, hasNextPage: false }, edges: [] };
 }
 
-export const titleOf = (anime: Anime) => anime.title?.english || anime.title?.romaji || anime.title?.native || 'Untitled anime';
+export const titleOf = (anime: Anime) => anime.title?.english || anime.title?.romaji || anime.title?.native || 'Untitled title';
 export const imageOf = (anime: Anime) => anime.coverImage?.extraLarge || anime.coverImage?.large || anime.bannerImage || '';
 export const cleanDescription = (value = '') => value
   .replace(/<[^>]*>/g, ' ')
