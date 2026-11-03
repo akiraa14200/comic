@@ -10,6 +10,7 @@ on:
       - 'package-lock.json'
       - 'capacitor.config.ts'
       - 'index.html'
+      - 'android-native/**'
       - '.github/workflows/android-apk.yml'
 
 permissions:
