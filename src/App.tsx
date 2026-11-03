@@ -186,7 +186,7 @@ function DetailPage({ user, mode }: { user: User | null; mode: CatalogueMode }) 
     const nextPage = characterPage + 1;
     setLoadingCharacters(true); setCharacterError('');
     try {
-      const result = await getAnimeCharacters(anime.id, nextPage);
+      const result = await getAnimeCharacters(anime.id, nextPage, mode.toUpperCase() as 'ANIME'|'MANGA');
       setAnime(current => current ? {
         ...current,
         characters: {
@@ -215,7 +215,7 @@ function DetailPage({ user, mode }: { user: User | null; mode: CatalogueMode }) 
   const sourceName = anime.source?.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, char => char.toUpperCase()) || 'Not specified';
   const tabs = [
     { id: 'overview' as const, label: 'Overview', icon: <Info size={16}/> },
-    ...(mode === 'anime' ? [{ id: 'characters' as const, label: 'Characters', icon: <Users size={16}/>, count: anime.characters?.edges.length }] : []),
+    { id: 'characters' as const, label: 'Characters', icon: <Users size={16}/>, count: anime.characters?.edges.length },
     { id: 'details' as const, label: 'Details', icon: <FileText size={16}/> },
     { id: 'comments' as const, label: 'Comments', icon: <MessageCircle size={16}/> }
   ];
