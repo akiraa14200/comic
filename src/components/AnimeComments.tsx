@@ -85,7 +85,7 @@ type ThreadProps = {
   user: User | null;
   sort: SortMode;
   onVote: (comment: CommentRow, vote: number) => void;
-  onReply: (parentId: string, body: string, spoiler: boolean) => Promise<void>;
+  onReply: (parentId: string, body: string, spoiler: boolean) => Promise<boolean>;
   onEdit: (commentId: string, body: string) => Promise<void>;
   onDelete: (commentId: string) => Promise<void>;
 };
@@ -108,8 +108,9 @@ function CommentThread({ comment, allComments, user, sort, onVote, onReply, onEd
     event.preventDefault();
     if (!replyText.trim()) return;
     setBusy(true);
-    await onReply(comment.id, replyText.trim(), replySpoiler);
-    setReplyText(''); setReplySpoiler(false); setReplyOpen(false); setBusy(false);
+    const posted = await onReply(comment.id, replyText.trim(), replySpoiler);
+    if (posted) { setReplyText(''); setReplySpoiler(false); setReplyOpen(false); }
+    setBusy(false);
   };
   const saveEdit = async (event: FormEvent) => {
     event.preventDefault();
@@ -165,8 +166,8 @@ export function AnimeComments({ animeId, animeTitle, user }: { animeId: number; 
 
   const sortedRoots = useMemo(() => sortRows(comments.filter(comment => !comment.parent_comment_id), sort), [comments, sort]);
 
-  const postComment = async (body: string, parentId: string | null, hasSpoiler: boolean) => {
-    if (!user) { setError('Sign in to join the discussion.'); return; }
+  const postComment = async (body: string, parentId: string | null, hasSpoiler: boolean): Promise<boolean> => {
+    if (!user) { setError('Sign in to join the discussion.'); return false; }
     const { error: insertError } = await supabase.from('anime_entry_comments').insert({
       anilist_id: animeId,
       user_id: user.id,
@@ -174,16 +175,17 @@ export function AnimeComments({ animeId, animeTitle, user }: { animeId: number; 
       body,
       spoiler: hasSpoiler
     });
-    if (insertError) { setError(insertError.message); return; }
-    setError(''); setNotice('Your comment was posted.'); await loadComments();
+    if (insertError) { setError(insertError.message); return false; }
+    setError(''); setNotice('Your comment was posted.'); await loadComments(); return true;
   };
 
   const submitComment = async (event: FormEvent) => {
     event.preventDefault();
     if (!draft.trim()) return;
     setPosting(true); setNotice('');
-    await postComment(draft.trim(), null, spoiler);
-    setDraft(''); setSpoiler(false); setPosting(false);
+    const posted = await postComment(draft.trim(), null, spoiler);
+    if (posted) { setDraft(''); setSpoiler(false); }
+    setPosting(false);
   };
 
   const voteComment = async (comment: CommentRow, value: number) => {
@@ -207,16 +209,14 @@ export function AnimeComments({ animeId, animeTitle, user }: { animeId: number; 
     if (deleteError) setError(deleteError.message); else await loadComments();
   };
 
-  const replyComment = async (parentId: string, body: string, hasSpoiler: boolean) => {
-    await postComment(body, parentId, hasSpoiler);
-  };
+  const replyComment = async (parentId: string, body: string, hasSpoiler: boolean) => postComment(body, parentId, hasSpoiler);
 
   return <section className="anime-discussion" id="discussion">
     <div className="anime-discussion-heading"><div><span className="eyebrow">COMMUNITY DISCUSSION</span><h2>What do you think?</h2><p>Share your thoughts about <strong>{animeTitle}</strong>.</p></div><span className="discussion-count">{comments.length} {comments.length === 1 ? 'comment' : 'comments'}</span></div>
-    {user ? <form className="anime-comment-composer" onSubmit={submitComment}>
+    {user ? <><div className="anime-session-note"><span>Signed in as <strong>{String(user.user_metadata?.display_name || 'Reader')}</strong></span><button type="button" onClick={() => { void supabase.auth.signOut(); }}>Sign out</button></div><form className="anime-comment-composer" onSubmit={submitComment}>
       <div className="composer-avatar">{String(user.user_metadata?.display_name || 'R').slice(0, 1).toUpperCase()}</div>
       <div className="composer-main"><textarea value={draft} onChange={e => setDraft(e.target.value)} placeholder="Start a discussion… Be respectful and avoid sharing personal information." maxLength={3000} required/><div className="composer-controls"><label className="spoiler-check"><input type="checkbox" checked={spoiler} onChange={e => setSpoiler(e.target.checked)}/> Mark as spoiler</label><span>{draft.length}/3000</span><button className="primary-btn" disabled={posting || !draft.trim()}><Send size={14}/> {posting ? 'Posting…' : 'Comment'}</button></div></div>
-    </form> : <AuthPanel/>}
+    </form></> : <AuthPanel/>}
     {notice && <p className="anime-comment-success">{notice}</p>}
     {error && <p className="anime-comment-error">{error}</p>}
     <div className="anime-discussion-toolbar"><span>DISCUSSION</span><label>Sort by <select value={sort} onChange={e => setSort(e.target.value as SortMode)}><option value="best">Best</option><option value="newest">Newest</option><option value="top">Top</option></select></label></div>
