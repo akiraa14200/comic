@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { getMediaCharacters } from './anilist';
+import { getMediaCharacters, getVideoCatalogue as getAniListAnimeVideos, getMangaVideoCatalogue } from './anilist';
 
 export type AnimeCharacter = {
   id: number;
@@ -84,6 +84,7 @@ export async function getRelatedVideos(page = 1, titleId?: string): Promise<Rela
   const from = (page - 1) * 40;
   let request = supabase.from('related_videos').select('id,title_id,legacy_title_id,video_url,platform,video_title,creator_name,creator_avatar_url,action_type,action_url,sort_order,created_at').order('sort_order', { ascending: true }).order('created_at', { ascending: false }).range(from, from + 39);
   if (titleId) request = request.or(`title_id.eq.${titleId},legacy_title_id.eq.${titleId}`);
+
   const { data, error } = await request;
   throwIf(error);
   const videos = ((data || []) as RelatedVideoRow[]).map(mapRelatedVideo);
@@ -96,6 +97,49 @@ export async function getRelatedVideos(page = 1, titleId?: string): Promise<Rela
       const title: any = byId.get(video.titleId);
       if (title) { video.titleName = title.name; video.titleCover = title.cover_url; video.titleFormat = title.media_type; video.releaseYear = title.release_year; }
     });
+  }
+
+  // Match the main branch's live AniList trailer discovery, while keeping
+  // RykoTube's saved community videos and its existing Shorts/Video layout.
+  // Both media types are paged independently so the feed can grow gradually.
+  if (!titleId) {
+    const [anime, manga] = await Promise.all([
+      getAniListAnimeVideos(page),
+      getMangaVideoCatalogue(page)
+    ]);
+    const knownUrls = new Set(videos.map(video => video.videoUrl));
+    const fromAniList = [...anime, ...manga].flatMap(item => {
+      const trailerId = item.trailer?.site?.toLowerCase() === 'youtube' && /^[a-zA-Z0-9_-]{6,}$/.test(item.trailer.id)
+        ? item.trailer.id : '';
+      if (!trailerId) return [];
+      const videoUrl = `https://www.youtube.com/watch?v=${trailerId}`;
+      if (knownUrls.has(videoUrl)) return [];
+      knownUrls.add(videoUrl);
+      const mediaFormat = item.format || '';
+      const country = item.countryOfOrigin || '';
+      const titleFormat = /MANGA|NOVEL|ONE_SHOT/.test(mediaFormat)
+        ? (country === 'KR' ? 'Manhwa' : country === 'CN' ? 'Manhua' : 'Manga')
+        : 'Anime';
+      const titleName = item.title?.english || item.title?.romaji || item.title?.native || 'Untitled';
+      return [{
+        id: `anilist-trailer-${item.id}`,
+        titleId: `anilist:${item.id}`,
+        videoUrl,
+        platform: 'youtube' as const,
+        videoTitle: titleName,
+        creatorName: 'YouTube',
+        creatorAvatarUrl: '',
+        actionType: 'watch' as const,
+        actionUrl: item.siteUrl || videoUrl,
+        sortOrder: 0,
+        createdAt: '1970-01-01T00:00:00.000Z',
+        titleName,
+        titleCover: item.coverImage?.extraLarge || item.coverImage?.large || '',
+        titleFormat,
+        releaseYear: item.seasonYear
+      }];
+    });
+    return [...videos, ...fromAniList];
   }
   return videos;
 }
