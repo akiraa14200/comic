@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { getMediaCharacters, getVideoCatalogue as getAniListAnimeVideos, getMangaVideoCatalogue } from './anilist';
+import { getMediaCharacters, getVideoCatalogue as getAniListAnimeVideos, getMangaVideoCatalogue, getTrendingManga as fetchTrendingManga, getPopularManga as fetchPopularManga, searchMedia, getAniListMediaById, getTrending as fetchAniListTrending, getPopular as fetchAniListPopular } from './anilist';
 
 export type AnimeCharacter = {
   id: number;
@@ -144,6 +144,39 @@ export async function getRelatedVideos(page = 1, titleId?: string): Promise<Rela
   return videos;
 }
 
+const mapAniListMedia = (item: import('./anilist').Anime): Anime => {
+  const manga = item.format === 'MANGA' || item.format === 'NOVEL' || item.format === 'ONE_SHOT';
+  const format = manga
+    ? item.format === 'NOVEL' ? 'Light Novel' : item.countryOfOrigin === 'KR' ? 'Manhwa' : item.countryOfOrigin === 'CN' ? 'Manhua' : 'Manga'
+    : item.format === 'MOVIE' ? 'Movie' : item.format === 'TV' ? 'TV Series' : item.format || 'Anime';
+  return {
+    id: `anilist-${item.id}`,
+    anilistId: item.id,
+    title: item.title || {},
+    description: item.description || '',
+    coverImage: item.coverImage || {},
+    bannerImage: item.bannerImage || '',
+    averageScore: item.averageScore,
+    episodes: item.episodes,
+    status: item.status || 'Unknown',
+    seasonYear: item.seasonYear,
+    format,
+    genres: item.genres || [],
+    studios: item.studios || { nodes: [] },
+    duration: item.duration,
+    siteUrl: item.siteUrl || '',
+    nextAiringEpisode: item.nextAiringEpisode,
+    trailer: item.trailer,
+    countryOfOrigin: item.countryOfOrigin || '',
+    source: item.source || '',
+    synonyms: item.synonyms || [],
+    startDate: item.startDate,
+    staff: item.staff || { edges: [] },
+    externalLinks: item.externalLinks || [],
+    characters: item.characters || emptyCharacters()
+  };
+};
+
 const mapTitle = (row: TitleRow): Anime => {
   const trailerId = youtubeId(row.trailer_url || '');
   return {
@@ -193,10 +226,38 @@ async function fetchTitles(query: any): Promise<Anime[]> {
   return ((data || []) as TitleRow[]).map(mapTitle);
 }
 export async function getTrending(): Promise<Anime[]> {
-  return cached('trending', () => fetchTitles(supabase.from('titles').select('*').or('is_featured.eq.true,is_trending.eq.true').order('popularity', { ascending: false }).limit(18)));
+  return cached('trending', async () => {
+    const [local, remote] = await Promise.allSettled([
+      fetchTitles(supabase.from('titles').select('*').or('is_featured.eq.true,is_trending.eq.true').order('popularity', { ascending: false }).limit(18)),
+      fetchAniListTrending()
+    ]);
+    const merged = [
+      ...(remote.status === 'fulfilled' ? remote.value.map(mapAniListMedia) : []),
+      ...(local.status === 'fulfilled' ? local.value : [])
+    ];
+    const seen = new Set<string>();
+    return merged.filter(item => !seen.has(item.id) && !!seen.add(item.id)).slice(0, 36);
+  });
 }
 export async function getPopular(): Promise<Anime[]> {
-  return cached('popular', () => fetchTitles(supabase.from('titles').select('*').order('popularity', { ascending: false }).limit(18)));
+  return cached('popular', async () => {
+    const [local, remote] = await Promise.allSettled([
+      fetchTitles(supabase.from('titles').select('*').order('popularity', { ascending: false }).limit(18)),
+      fetchAniListPopular()
+    ]);
+    const merged = [
+      ...(remote.status === 'fulfilled' ? remote.value.map(mapAniListMedia) : []),
+      ...(local.status === 'fulfilled' ? local.value : [])
+    ];
+    const seen = new Set<string>();
+    return merged.filter(item => !seen.has(item.id) && !!seen.add(item.id)).slice(0, 36);
+  });
+}
+export async function getTrendingManga(): Promise<Anime[]> {
+  return cached('trending-manga', async () => (await fetchTrendingManga()).map(mapAniListMedia));
+}
+export async function getPopularManga(): Promise<Anime[]> {
+  return cached('popular-manga', async () => (await fetchPopularManga()).map(mapAniListMedia));
 }
 export async function getSeasonal(): Promise<Anime[]> {
   return cached('seasonal', () => fetchTitles(supabase.from('titles').select('*').in('status', ['Airing','Ongoing']).order('release_year', { ascending: false }).limit(18)));
@@ -208,16 +269,18 @@ export async function getVideoCatalogue(page = 1, genre?: string): Promise<Anime
   return fetchTitles(request);
 }
 export async function searchAnime(search: string, page = 1, genre?: string, status?: string, format?: string): Promise<Anime[]> {
-  const from = (page - 1) * 50;
-  let request = supabase.from('titles').select('*').order('popularity', { ascending: false }).range(from, from + 49);
-  if (search.trim()) request = request.or(`name.ilike.%${search.trim().replace(/[(),]/g, ' ')}%,synopsis.ilike.%${search.trim().replace(/[(),]/g, ' ')}%`);
-  if (genre) request = request.contains('genres', [genre]);
-  if (status) {
-    const mapped: Record<string,string> = { RELEASING: 'Airing', FINISHED: 'Completed', NOT_YET_RELEASED: 'Upcoming', HIATUS: 'Hiatus' };
-    request = request.eq('status', mapped[status] || status);
-  }
-  if (format) request = request.eq('media_type', format);
-  return fetchTitles(request);
+  const animeFormats = ['TV','TV_SHORT','MOVIE','SPECIAL','OVA','ONA','MUSIC'];
+  const mangaFormats = ['MANGA','NOVEL','ONE_SHOT'];
+  const mediaType: 'ANIME' | 'MANGA' | undefined =
+    ['Manga','Manhwa','Manhua','Light Novel','Web Novel'].includes(format || '') ? 'MANGA' :
+    ['Anime','Movie','TV Series'].includes(format || '') ? 'ANIME' : undefined;
+  const apiFormat = format === 'Movie' ? 'MOVIE' : format === 'TV Series' ? 'TV' : format === 'Light Novel' || format === 'Web Novel' ? 'NOVEL' : undefined;
+  const results = await searchMedia(search, page, genre, status, apiFormat, mediaType);
+  let mapped = results.map(mapAniListMedia);
+  if (format === 'Manhwa') mapped = mapped.filter(item => item.countryOfOrigin === 'KR');
+  if (format === 'Manhua') mapped = mapped.filter(item => item.countryOfOrigin === 'CN');
+  if (format === 'Manga') mapped = mapped.filter(item => item.format === 'Manga');
+  return mapped;
 }
 const isMangaTitle = (format = '') => /manga|manhwa|manhua|webtoon|comic/i.test(format);
 const emptyCharacters = (page = 1): NonNullable<Anime['characters']> => ({
@@ -226,6 +289,17 @@ const emptyCharacters = (page = 1): NonNullable<Anime['characters']> => ({
 
 export async function getAnime(id: string): Promise<Anime | null> {
   if (!id) return null;
+  if (id.startsWith('anilist-')) {
+    const numericId = Number(id.slice('anilist-'.length));
+    return cached(`detail:${id}`, async () => {
+      const [anime, manga] = await Promise.all([
+        getAniListMediaById(numericId, 'ANIME').catch(() => null),
+        getAniListMediaById(numericId, 'MANGA').catch(() => null)
+      ]);
+      const result = anime || manga;
+      return result ? mapAniListMedia(result) : null;
+    });
+  }
   return cached(`detail:${id}`, async () => {
     const { data, error } = await supabase.from('titles').select('*').eq('id', id).maybeSingle();
     throwIf(error);
