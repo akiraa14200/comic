@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft } from 'lucide-react';
+import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft } from 'lucide-react';
 // The application UI and page components are defined below.
-import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getSeasonal, getTrending, getVideoCatalogue, getRelatedVideos, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
+import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getSeasonal, getTrending, getRelatedVideos, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { AnimeComments } from './components/AnimeComments';
