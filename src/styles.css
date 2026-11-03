@@ -257,3 +257,38 @@ body{padding-bottom:104px}
 .filter-bar .large-search{flex:1 1 240px}
 .filter-bar .genre-select{flex:1 1 135px;min-width:0}
 .filter-bar .genre-select select{min-width:0}
+
+
+/* Browse: compact, predictable controls instead of oversized mobile flex items. */
+.browse-page{padding-top:30px}
+.browse-filters{display:grid;grid-template-columns:minmax(220px,1.5fr) minmax(0,2fr);align-items:stretch;gap:12px;margin:22px 0 14px}
+.browse-filters>.large-search{height:52px;min-height:52px;max-height:52px;min-width:0;flex:none;padding:0 16px}
+.browse-filter-selects{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;min-width:0}
+.browse-filter-selects .genre-select{height:52px;min-height:52px;max-height:52px;min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;padding:5px 11px}
+.browse-filter-selects .genre-select>span{font-size:9px;letter-spacing:.04em;color:#8c879c}
+.browse-filter-selects .genre-select select{width:100%;min-width:0;font-size:11px}
+.browse-results-head{display:flex;align-items:center;justify-content:space-between;min-height:30px}
+.browse-page .results-caption{margin:8px 0 14px}
+.load-more-wrap{display:flex;justify-content:center;padding:28px 0 48px}
+.load-more-btn{min-width:190px;justify-content:center;cursor:pointer}
+.load-more-btn:disabled{opacity:.55;cursor:wait}
+.anime-card,.video-trailer-card,.history-item{content-visibility:auto;contain-intrinsic-size:260px}
+.anime-card img,.video-trailer-card img{display:block}
+.video-library{content-visibility:auto;contain-intrinsic-size:700px}
+@media(max-width:700px){
+ .browse-page{padding-top:26px}
+ .browse-filters{display:flex;flex-direction:column;gap:10px;margin:20px 0 12px}
+ .browse-filters>.large-search{width:100%;height:52px;min-height:52px;max-height:52px;flex:0 0 52px}
+ .browse-filter-selects{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;width:100%}
+ .browse-filter-selects .genre-select{height:54px;min-height:54px;max-height:54px;flex:none;padding:6px 8px;border-radius:10px;gap:4px}
+ .browse-filter-selects .genre-select>span{font-size:9px}
+ .browse-filter-selects .genre-select select{font-size:10px}
+ .browse-filter-selects .genre-select option{font-size:12px}
+ .browse-page .anime-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:17px 10px}
+ .browse-page .page-heading>p{max-width:300px;line-height:1.5}
+}
+@media(max-width:370px){
+ .browse-filter-selects{grid-template-columns:1fr}
+ .browse-filter-selects .genre-select{height:46px;min-height:46px;max-height:46px;flex-direction:row;align-items:center;justify-content:space-between;padding:0 12px}
+ .browse-filter-selects .genre-select select{width:65%}
+}
