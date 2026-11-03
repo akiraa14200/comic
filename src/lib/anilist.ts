@@ -96,12 +96,23 @@ async function query<T>(queryText: string, variables: Record<string, unknown> = 
       });
       window.clearTimeout(timeout);
 
+      // AniList can return useful GraphQL error details with non-2xx responses.
+      // Read the body before deciding whether to retry so users see the real cause.
+      const rawBody = await response.text();
+      let payload: AniListResponse<T> | null = null;
+      try { payload = rawBody ? JSON.parse(rawBody) as AniListResponse<T> : null; } catch { /* non-JSON proxy/server response */ }
+
       if (!response.ok) {
         const retryable = response.status === 429 || response.status >= 500;
         const retryAfter = Number(response.headers.get('Retry-After') || 0);
+        const apiMessage = payload?.errors?.map(error => error.message).filter(Boolean).join(' · ');
         lastError = new Error(response.status === 429
           ? 'AniList is receiving too many requests. Please wait a moment.'
-          : `Anime catalogue request failed (${response.status}).`);
+          : apiMessage
+            ? `AniList rejected the catalogue query: ${apiMessage}`
+            : response.status === 400
+              ? 'AniList rejected the catalogue request (400). The API did not provide a readable query error.'
+              : `Anime catalogue request failed (${response.status}).`);
         if (retryable && attempt < 2) {
           await new Promise(resolve => window.setTimeout(resolve, retryAfter > 0 ? Math.min(retryAfter * 1000, 5000) : 500 * (attempt + 1)));
           continue;
@@ -109,7 +120,10 @@ async function query<T>(queryText: string, variables: Record<string, unknown> = 
         throw lastError;
       }
 
-      const payload = await response.json() as AniListResponse<T>;
+      if (!payload) {
+        lastError = new Error('AniList returned an unreadable response. Please try again.');
+        throw lastError;
+      }
       if (payload.data) {
         memoryCache.set(cacheKey, { expires: Date.now() + cacheTtl, value: payload.data });
         return payload.data;
