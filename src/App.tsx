@@ -148,17 +148,47 @@ function WatchlistPage() {
 }
 
 function VideoPage() {
-  const [reloadKey, setReloadKey] = useState(0);
+  const [videos, setVideos] = useState<Anime[]>([]);
+  const [selected, setSelected] = useState<Anime | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([getTrending(), getPopular(), getSeasonal()])
+      .then(groups => {
+        if (!active) return;
+        const seen = new Set<number>();
+        const clips = groups.flat().filter(anime => {
+          const id = anime.trailer?.id || '';
+          const valid = anime.trailer?.site?.toLowerCase() === 'youtube' && /^[a-zA-Z0-9_-]{6,}$/.test(id);
+          if (!valid || seen.has(anime.id)) return false;
+          seen.add(anime.id);
+          return true;
+        });
+        setVideos(clips);
+        setSelected(clips[0] || null);
+      })
+      .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime previews.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  const trailerId = selected?.trailer?.id;
   return <main className="video-page">
     <div className="video-toolbar">
-      <div><span className="eyebrow">KAIRO VIDEO</span><h1>Watch <em>anime.</em></h1><p>Anikototv opens here inside Kairo's in-app web view.</p></div>
-      <div className="video-actions"><button className="secondary-btn" onClick={() => setReloadKey(v => v + 1)}>Reload</button><a className="primary-btn" href="https://anikototv.to/home" target="_blank" rel="noopener noreferrer">Open in browser <ExternalLink size={14}/></a></div>
+      <div><span className="eyebrow">KAIRO VIDEO</span><h1>Anime <em>trailers.</em></h1><p>Watch promotional previews linked through AniList metadata and YouTube.</p></div>
+      {selected?.siteUrl && <a className="secondary-btn" href={selected.siteUrl} target="_blank" rel="noopener noreferrer">Anime details <ExternalLink size={14}/></a>}
     </div>
-    <div className="video-frame-wrap"><iframe key={reloadKey} src="https://anikototv.to/home" title="Anikototv video website" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/></div>
-    <p className="fine-print">This tab displays the external website. Its playback, sign-in, cookies, advertisements and availability are controlled by Anikototv. If the provider blocks embedding, use “Open in browser”. Kairo does not host or modify its content.</p>
+    {error && <div className="notice">{error}</div>}
+    {loading ? <div className="video-loading">Loading anime previews…</div> : selected && trailerId ? <section className="video-feature">
+      <div className="video-player-wrap"><iframe key={trailerId} src={`https://www.youtube-nocookie.com/embed/${trailerId}?rel=0`} title={`Trailer for ${titleOf(selected)}`} allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/></div>
+      <div className="video-selected"><div><span className="eyebrow">NOW SELECTED</span><h2>{titleOf(selected)}</h2><p>{selected.seasonYear || 'Release year unavailable'} · {selected.format || 'Anime'} · {selected.episodes || 'Episode count unavailable'} episodes</p></div><a className="secondary-btn" href={`https://www.youtube.com/watch?v=${trailerId}`} target="_blank" rel="noopener noreferrer">Open on YouTube <ExternalLink size={14}/></a></div>
+    </section> : <div className="empty-state"><Play size={28}/><h3>No trailers available right now</h3><p>AniList has not returned supported YouTube trailer IDs for the current catalogue.</p><Link className="secondary-btn" to="/search">Explore anime</Link></div>}
+    {videos.length > 0 && <section className="section video-library"><div className="section-head"><div><h2>More previews</h2><p>Select a title to watch its trailer</p></div><span className="results-caption">{videos.length} trailers</span></div><div className="video-trailer-grid">{videos.map(anime => <button key={anime.id} className={selected?.id === anime.id ? 'video-trailer-card selected' : 'video-trailer-card'} onClick={() => { setSelected(anime); window.scrollTo({top: 0, behavior: 'smooth'}); }}><span className="video-trailer-image"><img src={imageOf(anime)} alt="" loading="lazy"/><span className="video-play-icon"><Play size={19} fill="currentColor"/></span></span><span className="video-trailer-title">{titleOf(anime)}</span><span className="video-trailer-meta">{anime.seasonYear || 'Year unknown'} · {anime.format || 'Anime'}</span></button>)}</div></section>}
+    <p className="fine-print">Kairo displays trailer metadata from AniList and embeds YouTube previews. These are promotional videos, not full episodes. Playback, availability, content ratings and advertisements are controlled by YouTube and the video publisher. Kairo does not host video files or extract streams.</p>
   </main>;
 }
-
 function PrivacyPage() {
   const [protection, setProtection] = useState(()=>readStore('kairo-privacy', true));
   useEffect(()=>localStorage.setItem('kairo-privacy', JSON.stringify(protection)),[protection]);
