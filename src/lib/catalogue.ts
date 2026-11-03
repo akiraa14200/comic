@@ -13,7 +13,7 @@ export type AnimeCharacter = {
   role?: string;
 };
 export type AnimeStaff = { role: string; node: { name: { full?: string } } };
-export type AnimeExternalLink = { url: string; site: string; type?: string };
+export type AnimeExternalLink = { url: string; site: string; type?: string };\nexport type RelatedVideo = { id: string; titleId: string; videoUrl: string; platform: 'youtube' | 'instagram' | 'dailymotion'; videoTitle: string; creatorName: string; creatorAvatarUrl: string; actionType: 'read' | 'watch'; actionUrl: string; sortOrder: number; createdAt: string; titleName?: string; titleCover?: string; titleFormat?: string; releaseYear?: number };
 export type Anime = {
   id: string;
   title: { romaji?: string; english?: string; native?: string };
@@ -31,7 +31,7 @@ export type Anime = {
   siteUrl?: string;
   nextAiringEpisode?: { episode: number; airingAt: number };
   trailer?: { id: string; site: string };
-  trailerUrl?: string;
+  trailerUrl?: string;\n  relatedVideos?: RelatedVideo[];
   countryOfOrigin?: string;
   source?: string;
   synonyms?: string[];
@@ -64,7 +64,38 @@ const youtubeId = (url = '') => {
   } catch { /* invalid or non-YouTube URL */ }
   return '';
 };
-const mapTitle = (row: TitleRow): Anime => {
+
+type RelatedVideoRow = {
+  id: string; title_id: string; video_url: string; platform: 'youtube' | 'instagram' | 'dailymotion';
+  video_title?: string; creator_name?: string; creator_avatar_url?: string; action_type?: 'read' | 'watch';
+  action_url?: string; sort_order?: number; created_at: string;
+};
+const mapRelatedVideo = (row: RelatedVideoRow): RelatedVideo => ({
+  id: row.id, titleId: row.title_id, videoUrl: row.video_url, platform: row.platform,
+  videoTitle: row.video_title || '', creatorName: row.creator_name || '',
+  creatorAvatarUrl: row.creator_avatar_url || '', actionType: row.action_type || 'watch',
+  actionUrl: row.action_url || row.video_url, sortOrder: row.sort_order || 0, createdAt: row.created_at
+});
+export async function getRelatedVideos(page = 1, titleId?: string): Promise<RelatedVideo[]> {
+  const from = (page - 1) * 40;
+  let request = supabase.from('related_videos').select('id,title_id,video_url,platform,video_title,creator_name,creator_avatar_url,action_type,action_url,sort_order,created_at').order('sort_order', { ascending: true }).order('created_at', { ascending: false }).range(from, from + 39);
+  if (titleId) request = request.eq('title_id', titleId);
+  const { data, error } = await request;
+  throwIf(error);
+  const videos = ((data || []) as RelatedVideoRow[]).map(mapRelatedVideo);
+  const titleIds = [...new Set(videos.map(video => video.titleId))];
+  if (titleIds.length) {
+    const { data: titles, error: titleError } = await supabase.from('titles').select('id,name,cover_url,media_type,release_year').in('id', titleIds);
+    throwIf(titleError);
+    const byId = new Map((titles || []).map((title: any) => [title.id, title]));
+    videos.forEach(video => {
+      const title: any = byId.get(video.titleId);
+      if (title) { video.titleName = title.name; video.titleCover = title.cover_url; video.titleFormat = title.media_type; video.releaseYear = title.release_year; }
+    });
+  }
+  return videos;
+}
+\nconst mapTitle = (row: TitleRow): Anime => {
   const trailerId = youtubeId(row.trailer_url || '');
   return {
     id: row.id,
