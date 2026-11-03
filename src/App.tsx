@@ -1,8 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft } from 'lucide-react';
 // The application UI and page components are defined below.
-import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getSeasonal, getTrending, getRelatedVideos, enrichVideoMetadata, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
+import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getPopularManga, getSeasonal, getTrending, getTrendingManga, getRelatedVideos, enrichVideoMetadata, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { AnimeComments } from './components/AnimeComments';
@@ -67,13 +67,15 @@ function Home() {
   const [trending, setTrending] = useState<Anime[]>([]);
   const [popular, setPopular] = useState<Anime[]>([]);
   const [seasonal, setSeasonal] = useState<Anime[]>([]);
+  const [trendingManga, setTrendingMangaItems] = useState<Anime[]>([]);
+  const [popularManga, setPopularMangaItems] = useState<Anime[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { saved, history, toggle } = useLibrary();
   useEffect(() => {
     let active = true;
-    Promise.all([getTrending(), getPopular(), getSeasonal()])
-      .then(([a,b,c]) => { if (active) { setTrending(a); setPopular(b); setSeasonal(c); } })
+    Promise.all([getTrending(), getPopular(), getSeasonal(), getTrendingManga(), getPopularManga()])
+      .then(([a,b,c,d,e]) => { if (active) { setTrending(a); setPopular(b); setSeasonal(c); setTrendingMangaItems(d); setPopularMangaItems(e); } })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime right now.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -101,6 +103,8 @@ function Home() {
     <Section title="Trending now" subtitle="What the anime community is watching" items={trending} saved={saved.map(a => a.id)} onSave={toggle} to="/search?sort=trending"/>
     <Section title="This season" subtitle="Fresh stories airing right now" items={seasonal} saved={saved.map(a => a.id)} onSave={toggle}/>
     <Section title="Popular picks" subtitle="Fan favorites worth your time" items={popular} saved={saved.map(a => a.id)} onSave={toggle}/>
+    <Section title="Trending manga & manhwa" subtitle="Popular manga, manhwa and manhua from AniList" items={trendingManga} saved={saved.map(a => a.id)} onSave={toggle} to="/search?format=Manga"/>
+    <Section title="Popular manga" subtitle="Reader favorites across the AniList catalogue" items={popularManga} saved={saved.map(a => a.id)} onSave={toggle} to="/search?format=Manga"/>
     {history.length > 0 && <section className="section"><div className="section-head"><div><h2>Pick up where you left off</h2><p>Your recently opened anime</p></div></div><div className="history-row">{history.slice(0,5).map(item => <Link to={`/anime/${item.id}`} className="history-item" key={item.id}><img src={item.image} alt=""/><span>{item.title}</span><small>Recently viewed</small></Link>)}</div></section>}
     <div className="api-credit">Catalogue powered by the RykocCllection website database.</div>
   </main>;
@@ -141,21 +145,21 @@ function SearchPage() {
       const data = await searchAnime(term.trim(), next, genre || undefined, status || undefined, format || undefined);
       setItems(old => { const ids = new Set(old.map(item => item.id)); return [...old, ...data.filter(item => !ids.has(item.id))]; });
       setPage(next); setHasMore(data.length === 50);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not load more anime.'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not load more titles.'); }
     finally { setLoadingMore(false); }
   };
   const genres = ['Action','Adventure','Comedy','Drama','Fantasy','Horror','Mystery','Romance','Sci-Fi','Slice of Life','Sports','Supernatural'];
-  return <main className="content-page browse-page"><div className="page-heading"><span className="eyebrow">THE ANIME CATALOGUE</span><h1>Explore <em>anime.</em></h1><p>Search for a favorite or let a new story find you.</p></div>
+  return <main className="content-page browse-page"><div className="page-heading"><span className="eyebrow">THE ANILIST CATALOGUE</span><h1>Explore <em>anime & manga.</em></h1><p>Search across anime, manga, manhwa, manhua and light novels.</p></div>
     <div className="filter-bar browse-filters"><label className="large-search"><Search size={19}/><input value={term} onChange={e => setTerm(e.target.value)} placeholder="Search titles, series, stories..." autoComplete="off"/></label>
       <div className="browse-filter-selects"><label className="genre-select"><span>Genre</span><select aria-label="Filter by genre" value={genre} onChange={e => setGenre(e.target.value)}><option value="">All genres</option>{genres.map(g => <option key={g}>{g}</option>)}</select></label>
       <label className="genre-select"><span>Status</span><select aria-label="Filter by status" value={status} onChange={e=>setStatus(e.target.value)}><option value="">Any status</option><option value="RELEASING">Airing</option><option value="FINISHED">Finished</option><option value="NOT_YET_RELEASED">Upcoming</option><option value="HIATUS">Hiatus</option></select></label>
       <label className="genre-select"><span>Format</span><select aria-label="Filter by format" value={format} onChange={e=>setFormat(e.target.value)}><option value="">Any format</option><option value="Anime">Anime</option><option value="Manga">Manga</option><option value="Manhwa">Manhwa</option><option value="Manhua">Manhua</option><option value="Movie">Movie</option><option value="TV Series">TV Series</option><option value="Light Novel">Light Novel</option><option value="Web Novel">Web Novel</option></select></label></div>
     </div>
-    <div className="browse-results-head"><div className="results-caption">{busy ? 'Updating catalogue…' : `${items.length} titles loaded`}{term && <span> for “{term}”</span>}</div></div>
+    <div className="browse-results-head"><div className="results-caption">{busy ? 'Updating catalogue…' : `${items.length} AniList titles loaded`}{term && <span> for “{term}”</span>}</div></div>
     {error && <div className="notice">{error}</div>}
     {busy && !items.length ? <div className="anime-grid">{Array.from({length:8},(_,i)=><div className="skeleton-card" key={i}><div className="skeleton-poster"/><div className="skeleton-line"/></div>)}</div> :
-      items.length ? <><div className="anime-grid">{items.map(item=><AnimeCard key={item.id} anime={item} saved={saved.some(a=>a.id===item.id)} onSave={toggle}/>)}</div>{hasMore && <div className="load-more-wrap"><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading more anime…':'Load more anime'}</button></div>}</> :
-      <div className="empty-state"><Search size={28}/><h3>No anime found</h3><p>Try another title or choose a different filter.</p></div>}
+      items.length ? <><div className="anime-grid">{items.map(item=><AnimeCard key={item.id} anime={item} saved={saved.some(a=>a.id===item.id)} onSave={toggle}/>)}</div>{hasMore && <div className="load-more-wrap"><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading more titles…':'Load more titles'}</button></div>}</> :
+      <div className="empty-state"><Search size={28}/><h3>No anime or manga found</h3><p>Try another title or choose a different filter.</p></div>}
   </main>;
 }
 function DetailPage({ user }: { user: User | null }) {
@@ -393,6 +397,47 @@ function detectVideoFormat(url:string) {
     return 'video';
   } catch { return 'video'; }
 }
+function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo; short: boolean; playing: boolean; onPlay: () => void }) {
+  const cardRef = useRef<HTMLElement | null>(null);
+  const [nearViewport, setNearViewport] = useState(false);
+  useEffect(() => {
+    const node = cardRef.current;
+    if (!node) return;
+    if (!('IntersectionObserver' in window)) { setNearViewport(true); return; }
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        setNearViewport(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '160px 0px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  const embed = videoEmbedUrl(video);
+  const thumbnail = videoThumbnail(video);
+  return <article ref={cardRef} className={`yt-video-card ${short?'yt-short-card':'yt-standard-card'}`}>
+    {!nearViewport ? <>
+      <div className="yt-thumbnail"><div className="yt-skeleton-thumb"/></div>
+      <div className="yt-video-info"><span className="yt-skeleton-avatar"/><div className="yt-video-text"><span className="yt-skeleton-line"/><span className="yt-skeleton-line"/></div></div>
+    </> : <>
+      <div className="yt-thumbnail">
+        {playing&&embed?<iframe key={video.id} src={embed} title={video.videoTitle||video.titleName||'Ryko video'} loading="eager" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/>:
+        <button className="yt-thumbnail-button" onClick={onPlay} aria-label={playing?'Close player':'Play video'}>
+          {thumbnail?<img src={thumbnail} alt={video.videoTitle||video.titleName||'Video thumbnail'} loading="lazy" decoding="async" fetchPriority="low" onError={e=>{e.currentTarget.onerror=null;e.currentTarget.src=video.titleCover||'/placeholder-poster.svg';}}/>:<span className="yt-thumbnail-fallback"/>}
+          <span className="yt-play-overlay"><Play size={short?24:30} fill="currentColor"/></span>
+          {short&&<span className="yt-shorts-label">SHORTS</span>}
+        </button>}
+        {playing&&!embed&&<div className="yt-unavailable">This video cannot play in an embedded player. <a href={video.videoUrl} target="_blank" rel="noopener noreferrer">Open original <ExternalLink size={12}/></a></div>}
+      </div>
+      <div className="yt-video-info">
+        {video.creatorAvatarUrl?<img className="yt-channel-avatar" src={video.creatorAvatarUrl} alt="" loading="lazy" decoding="async"/>:<span className="yt-channel-avatar yt-avatar-fallback">{(video.creatorName||video.titleName||'R').slice(0,1).toUpperCase()}</span>}
+        <div className="yt-video-text"><h3>{(video.videoTitle||video.titleName||'Related video').length>50?(video.videoTitle||video.titleName||'Related video').slice(0,47).trimEnd()+'…':video.videoTitle||video.titleName||'Related video'}</h3><p>{video.creatorName||'Ryko Collection'}</p><p>{video.titleName||'Ryko video catalogue'}</p>{video.actionUrl&&<a className="yt-related" href={video.actionUrl} target="_blank" rel="noopener noreferrer">{video.actionType==='read'?'View title':'Related link'} <ExternalLink size={11}/></a>}</div>
+        <button className="yt-more" onClick={onPlay} aria-label={playing?'Close player':'Play video'}>{playing?<X size={20}/>:<span>•••</span>}</button>
+      </div>
+    </>}
+  </article>;
+}
+
 function VideoPage() {
   const [videos,setVideos]=useState<RelatedVideo[]>([]);
   const [page,setPage]=useState(1);
@@ -405,25 +450,7 @@ function VideoPage() {
   const [format,setFormat]=useState<'all'|'video'|'short'>('all');
   const [category,setCategory]=useState('All');
   useEffect(()=>{let active=true;getRelatedVideos(1).then(data=>enrichVideoMetadata(data)).then(data=>{if(!active)return;setVideos(data);setHasMore(data.length>0);}).catch(e=>{if(active)setError(e instanceof Error?e.message:'Could not load videos.');}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[]);
-  useEffect(()=>{
-    const root=document.querySelector('.yt-page');
-    if(!root)return;
-    const cards=root.querySelectorAll('.yt-video-card');
-    if(!cards.length)return;
-    if(!('IntersectionObserver' in window)){
-      cards.forEach(card=>card.querySelectorAll<HTMLImageElement>('img[loading="lazy"]').forEach(img=>{img.loading='eager';}));
-      return;
-    }
-    const observer=new IntersectionObserver(entries=>{
-      entries.forEach(entry=>{
-        if(!entry.isIntersecting)return;
-        entry.target.querySelectorAll<HTMLImageElement>('img[loading="lazy"]').forEach(img=>{img.loading='eager';});
-        observer.unobserve(entry.target);
-      });
-    },{rootMargin:'280px 0px'});
-    cards.forEach(card=>observer.observe(card));
-    return()=>observer.disconnect();
-  },[videos,format,category,term]);
+
   const searchable=videos.filter(v=>[v.videoTitle,v.creatorName,v.titleName].join(' ').toLowerCase().includes(term.toLowerCase()));
   const categoryMatch=(v:RelatedVideo)=>category==='All'||(v.titleFormat||'').toLowerCase()===category.toLowerCase();
   const filtered=searchable.filter(categoryMatch);
@@ -431,25 +458,7 @@ function VideoPage() {
   const regular=filtered.filter(v=>detectVideoFormat(v.videoUrl)==='video');
   const visible=format==='short'?shorts:format==='video'?regular:filtered;
   const loadMore=async()=>{if(loadingMore||!hasMore)return;setLoadingMore(true);setError('');try{const raw=await getRelatedVideos(page+1);const data=await enrichVideoMetadata(raw);setVideos(old=>[...old,...data.filter(v=>!old.some(x=>x.id===v.id))]);setPage(page+1);setHasMore(data.length>0);}catch(e){setError(e instanceof Error?e.message:'Could not load more videos.');}finally{setLoadingMore(false);}};
-  const card=(video:RelatedVideo,short:boolean)=>{
-    const playing=playingId===video.id,embed=videoEmbedUrl(video),thumbnail=videoThumbnail(video);
-    return <article key={video.id} className={`yt-video-card ${short?'yt-short-card':'yt-standard-card'}`}>
-      <div className="yt-thumbnail">
-        {playing&&embed?<iframe key={video.id} src={embed} title={video.videoTitle||video.titleName||'Ryko video'} loading="eager" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/>:
-        <button className="yt-thumbnail-button" onClick={()=>setPlayingId(playing?null:video.id)} aria-label={playing?'Close player':'Play video'}>
-          {thumbnail?<img src={thumbnail} alt={video.videoTitle||video.titleName||'Video thumbnail'} loading="lazy" decoding="async" onError={e=>{e.currentTarget.onerror=null;e.currentTarget.src=video.titleCover||'/placeholder-poster.svg';}}/>:<span className="yt-thumbnail-fallback"/>}
-          <span className="yt-play-overlay"><Play size={short?24:30} fill="currentColor"/></span>
-          {short&&<span className="yt-shorts-label">SHORTS</span>}
-        </button>}
-        {playing&&!embed&&<div className="yt-unavailable">This video cannot play in an embedded player. <a href={video.videoUrl} target="_blank" rel="noopener noreferrer">Open original <ExternalLink size={12}/></a></div>}
-      </div>
-      <div className="yt-video-info">
-        {video.creatorAvatarUrl?<img className="yt-channel-avatar" src={video.creatorAvatarUrl} alt="" loading="lazy" decoding="async"/>:<span className="yt-channel-avatar yt-avatar-fallback">{(video.creatorName||video.titleName||'R').slice(0,1).toUpperCase()}</span>}
-        <div className="yt-video-text"><h3>{(video.videoTitle||video.titleName||'Related video').length>50?(video.videoTitle||video.titleName||'Related video').slice(0,47).trimEnd()+'…':video.videoTitle||video.titleName||'Related video'}</h3><p>{video.creatorName||'Ryko Collection'}</p><p>{video.titleName||'Ryko video catalogue'}</p>{video.actionUrl&&<a className="yt-related" href={video.actionUrl} target="_blank" rel="noopener noreferrer">{video.actionType==='read'?'View title':'Related link'} <ExternalLink size={11}/></a>}</div>
-        <button className="yt-more" onClick={()=>setPlayingId(playing?null:video.id)} aria-label={playing?'Close player':'Play video'}>{playing?<X size={20}/>:<span>•••</span>}</button>
-      </div>
-    </article>;
-  };
+
   if(format==='all'){
     const shortBatches:RelatedVideo[][]=[];for(let i=0;i<shorts.length;i+=12)shortBatches.push(shorts.slice(i,i+12));
     const videoBatches:RelatedVideo[][]=[];for(let i=0;i<regular.length;i+=8)videoBatches.push(regular.slice(i,i+8));
@@ -460,8 +469,8 @@ function VideoPage() {
       <nav className="yt-category-bar" aria-label="Filter by title category">{['All','Anime','Manga','Manhwa','Manhua','Movie','TV Series'].map(x=><button key={x} className={category===x?'active':''} onClick={()=>setCategory(x)}>{x}</button>)}</nav>
       {error&&<div className="notice">{error}</div>}
       {loading?<div className="yt-loading-grid" aria-label="Loading videos">{Array.from({length:4},(_,i)=><div className="yt-skeleton-card" key={i}><div className="yt-skeleton-thumb"/><div className="yt-skeleton-meta"><div className="yt-skeleton-avatar"/><div className="yt-skeleton-copy"><span className="yt-skeleton-line"/><span className="yt-skeleton-line"/></div></div></div>)}</div>:filtered.length?Array.from({length:total},(_,i)=><div className="yt-feed-batch" key={i}>
-        {shortBatches[i]?.length>0&&<section className="yt-section yt-shorts-section"><div className="yt-section-heading"><div><h2><span className="yt-shorts-symbol">▰</span> Shorts</h2><p>Quick clips from your collection</p></div><span>{shortBatches[i].length} shorts</span></div><div className="yt-shorts-row">{shortBatches[i].map(v=>card(v,true))}</div></section>}
-        {videoBatches[i]?.length>0&&<section className="yt-section"><div className="yt-section-heading"><div><h2>Videos</h2><p>Trailers, edits and full-length videos</p></div><span>{videoBatches[i].length} videos</span></div><div className="yt-video-feed">{videoBatches[i].map(v=>card(v,false))}</div></section>}
+        {shortBatches[i]?.length>0&&<section className="yt-section yt-shorts-section"><div className="yt-section-heading"><div><h2><span className="yt-shorts-symbol">▰</span> Shorts</h2><p>Quick clips from your collection</p></div><span>{shortBatches[i].length} shorts</span></div><div className="yt-shorts-row">{shortBatches[i].map(v=><LazyVideoCard key={v.id} video={v} short playing={playingId===v.id} onPlay={()=>setPlayingId(playingId===v.id?null:v.id)}/>)}</div></section>}
+        {videoBatches[i]?.length>0&&<section className="yt-section"><div className="yt-section-heading"><div><h2>Videos</h2><p>Trailers, edits and full-length videos</p></div><span>{videoBatches[i].length} videos</span></div><div className="yt-video-feed">{videoBatches[i].map(v=><LazyVideoCard key={v.id} video={v} short={false} playing={playingId===v.id} onPlay={()=>setPlayingId(playingId===v.id?null:v.id)}/>)}</div></section>}
       </div>):<div className="yt-empty"><Play size={28}/><h3>{term||category!=='All'?'No matching videos':'No videos yet'}</h3><p>Try changing your search or filters.</p><button className="secondary-btn" onClick={()=>{setTerm('');setCategory('All');setFormat('all');}}>Clear filters</button></div>}
       {!loading&&hasMore&&<div className="load-more-wrap"><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading…':'Load more'}</button></div>}
       <p className="yt-disclaimer">Playback availability depends on each original video provider and its embedding settings.</p>
@@ -472,7 +481,7 @@ function VideoPage() {
     <nav className="yt-filter-bar" aria-label="Video format">{([{id:'all',label:'All'},{id:'video',label:'Videos'},{id:'short',label:'Shorts'}] as const).map(x=><button key={x.id} className={format===x.id?'active':''} onClick={()=>setFormat(x.id)}>{x.label}</button>)}</nav>
     <nav className="yt-category-bar" aria-label="Filter by title category">{['All','Anime','Manga','Manhwa','Manhua','Movie','TV Series'].map(x=><button key={x} className={category===x?'active':''} onClick={()=>setCategory(x)}>{x}</button>)}</nav>
     {error&&<div className="notice">{error}</div>}
-    {loading?<div className="video-loading">Loading your Ryko video library…</div>:visible.length?<section className="yt-section"><div className="yt-section-heading"><div><h2>{format==='short'?'Shorts':'Videos'}</h2><p>{format==='short'?'Quick vertical clips':'Trailers, edits and full-length videos'}</p></div><span>{visible.length} results</span></div><div className={format==='short'?'yt-shorts-grid':'yt-video-feed'}>{visible.map(v=>card(v,format==='short'))}</div></section>:<div className="yt-empty"><Play size={28}/><h3>No matching videos</h3><p>Try another search or category.</p><button className="secondary-btn" onClick={()=>{setTerm('');setCategory('All');setFormat('all');}}>Clear filters</button></div>}
+    {loading?<div className="video-loading">Loading your Ryko video library…</div>:visible.length?<section className="yt-section"><div className="yt-section-heading"><div><h2>{format==='short'?'Shorts':'Videos'}</h2><p>{format==='short'?'Quick vertical clips':'Trailers, edits and full-length videos'}</p></div><span>{visible.length} results</span></div><div className={format==='short'?'yt-shorts-grid':'yt-video-feed'}>{visible.map(v=><LazyVideoCard key={v.id} video={v} short={format==='short'} playing={playingId===v.id} onPlay={()=>setPlayingId(playingId===v.id?null:v.id)}/>)}</div></section>:<div className="yt-empty"><Play size={28}/><h3>No matching videos</h3><p>Try another search or category.</p><button className="secondary-btn" onClick={()=>{setTerm('');setCategory('All');setFormat('all');}}>Clear filters</button></div>}
     {!loading&&hasMore&&<div className="load-more-wrap"><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading…':'Load more'}</button></div>}
     <p className="yt-disclaimer">Playback availability depends on each original video provider and its embedding settings.</p>
   </main>;
