@@ -191,14 +191,15 @@ export async function searchMedia(
   genre?: string,
   status?: string,
   format?: string,
-  mediaType?: 'ANIME' | 'MANGA'
+  mediaType?: 'ANIME' | 'MANGA',
+  country?: 'KR' | 'CN'
 ): Promise<Anime[]> {
   const validFormats = ['TV','TV_SHORT','MOVIE','SPECIAL','OVA','ONA','MUSIC','MANGA','NOVEL','ONE_SHOT'];
   const apiFormat = format && validFormats.includes(format) ? format : undefined;
   const data = await query<{ Page: { media: Anime[] } }>(
-    `query($search: String, $page: Int, $genre: String, $status: MediaStatus, $format: MediaFormat, $type: MediaType) {
+    `query($search: String, $page: Int, $genre: String, $status: MediaStatus, $format: MediaFormat, $type: MediaType, $country: CountryCode, $sort: [MediaSort]) {
       Page(page: $page, perPage: 50) {
-        media(type: $type, search: $search, genre: $genre, status: $status, format: $format, sort: SEARCH_MATCH, isAdult: false) { ${fields} }
+        media(type: $type, search: $search, genre: $genre, status: $status, format: $format, countryOfOrigin: $country, sort: $sort, isAdult: false) { ${fields} }
       }
     }`,
     {
@@ -207,7 +208,9 @@ export async function searchMedia(
       genre: genre || undefined,
       status: status || undefined,
       format: apiFormat,
-      type: mediaType
+      type: mediaType,
+      country,
+      sort: search.trim() ? ['SEARCH_MATCH'] : ['POPULARITY_DESC']
     }
   );
   return data.Page?.media || [];
