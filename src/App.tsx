@@ -368,51 +368,53 @@ function isShortVideo(video: RelatedVideo) {
   } catch { return false; }
 }
 function VideoPage() {
-  const [videos, setVideos] = useState<RelatedVideo[]>([]);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [playingId, setPlayingId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState('');
-  const [term, setTerm] = useState('');
-  useEffect(() => { let active = true; getRelatedVideos(1).then(data => { if (!active) return; setVideos(data); setHasMore(data.length === 40); }).catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load related videos from Ryko.'); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, []);
-  const filtered = videos.filter(video => [video.videoTitle, video.creatorName, video.titleName].join(' ').toLowerCase().includes(term.toLowerCase()));
-  const shorts = filtered.filter(isShortVideo);
-  const regularVideos = filtered.filter(video => !isShortVideo(video));
-  const loadMore = async () => { if (loadingMore || !hasMore) return; setLoadingMore(true); setError(''); try { const data = await getRelatedVideos(page + 1); setVideos(old => [...old, ...data.filter(video => !old.some(item => item.id === video.id))]); setPage(page + 1); setHasMore(data.length === 40); } catch(e) { setError(e instanceof Error ? e.message : 'Could not load more videos.'); } finally { setLoadingMore(false); } };
-  const renderCard = (video: RelatedVideo, short = false) => {
-    const playing = playingId === video.id;
-    const embed = videoEmbedUrl(video);
-    const thumbnail = videoThumbnail(video);
-    return <article key={video.id} className={`video-feed-card ${short ? 'video-feed-short' : 'video-feed-regular'}`}>
-      <div className="video-feed-media">
-        {playing && embed ? <iframe key={video.id} src={embed} title={video.videoTitle || video.titleName || 'Ryko video'} loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/> :
-        <button className="video-feed-play" onClick={()=>setPlayingId(playing ? null : video.id)} aria-label={playing ? 'Stop video' : 'Play video'}>
-          {thumbnail ? <img src={thumbnail} alt={video.videoTitle || video.titleName || 'Video thumbnail'} loading="lazy" onError={event=>{event.currentTarget.onerror=null;event.currentTarget.src=video.titleCover || '/placeholder-poster.svg';}}/> : <span className="video-feed-placeholder"/>}
-          <span className="video-feed-play-icon"><Play size={short ? 24 : 30} fill="currentColor"/></span>
-          {short && <span className="video-short-badge">SHORT</span>}
+  const [videos,setVideos]=useState<RelatedVideo[]>([]);
+  const [page,setPage]=useState(1);
+  const [hasMore,setHasMore]=useState(true);
+  const [playingId,setPlayingId]=useState<string|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [loadingMore,setLoadingMore]=useState(false);
+  const [error,setError]=useState('');
+  const [term,setTerm]=useState('');
+  const [filter,setFilter]=useState<'all'|'videos'|'shorts'>('all');
+  useEffect(()=>{let active=true;getRelatedVideos(1).then(data=>{if(!active)return;setVideos(data);setHasMore(data.length===40);}).catch(e=>{if(active)setError(e instanceof Error?e.message:'Could not load videos.');}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[]);
+  const searched=videos.filter(v=>[v.videoTitle,v.creatorName,v.titleName].join(' ').toLowerCase().includes(term.toLowerCase()));
+  const shorts=searched.filter(isShortVideo);
+  const regular=searched.filter(v=>!isShortVideo(v));
+  const visible=filter==='shorts'?shorts:filter==='videos'?regular:searched;
+  const loadMore=async()=>{if(loadingMore||!hasMore)return;setLoadingMore(true);setError('');try{const data=await getRelatedVideos(page+1);setVideos(old=>[...old,...data.filter(v=>!old.some(x=>x.id===v.id))]);setPage(page+1);setHasMore(data.length===40);}catch(e){setError(e instanceof Error?e.message:'Could not load more videos.');}finally{setLoadingMore(false);}};
+  const card=(video:RelatedVideo,short:boolean)=>{
+    const playing=playingId===video.id,embed=videoEmbedUrl(video),thumbnail=videoThumbnail(video);
+    return <article key={video.id} className={`yt-video-card ${short?'yt-short-card':'yt-standard-card'}`}>
+      <div className="yt-thumbnail">
+        {playing&&embed?<iframe key={video.id} src={embed} title={video.videoTitle||video.titleName||'Ryko video'} loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/>:
+        <button className="yt-thumbnail-button" onClick={()=>setPlayingId(playing?null:video.id)} aria-label={playing?'Close player':'Play video'}>
+          {thumbnail?<img src={thumbnail} alt={video.videoTitle||video.titleName||'Video thumbnail'} loading="lazy" onError={e=>{e.currentTarget.onerror=null;e.currentTarget.src=video.titleCover||'/placeholder-poster.svg';}}/>:<span className="yt-thumbnail-fallback"/>}
+          <span className="yt-play-overlay"><Play size={short?24:30} fill="currentColor"/></span>
+          {short&&<span className="yt-shorts-label">SHORTS</span>}
         </button>}
-        {playing && !embed && <div className="video-feed-unavailable">This video cannot be embedded. <a href={video.videoUrl} target="_blank" rel="noopener noreferrer">Open original <ExternalLink size={12}/></a></div>}
+        {playing&&!embed&&<div className="yt-unavailable">This video cannot play in an embedded player. <a href={video.videoUrl} target="_blank" rel="noopener noreferrer">Open original <ExternalLink size={12}/></a></div>}
       </div>
-      <div className="video-feed-details">
-        {video.creatorAvatarUrl ? <img className="video-feed-avatar" src={video.creatorAvatarUrl} alt="" loading="lazy"/> : <span className="video-feed-avatar video-feed-avatar-fallback">{(video.creatorName || video.titleName || 'R').slice(0,1).toUpperCase()}</span>}
-        <div className="video-feed-copy"><h3>{video.videoTitle || video.titleName || 'Related video'}</h3><p>{video.creatorName || 'Ryko Collection'}{video.titleName ? ` · ${video.titleName}` : ''}</p>{video.actionUrl && <a href={video.actionUrl} target="_blank" rel="noopener noreferrer" className="video-feed-related-link">{video.actionType === 'read' ? 'View title' : 'Related link'} <ExternalLink size={11}/></a>}</div>
-        <button className="video-feed-more" onClick={()=>setPlayingId(playing ? null : video.id)} aria-label={playing ? 'Close player' : 'Play video'}>{playing ? <X size={20}/> : <Play size={19}/>}</button>
+      <div className="yt-video-info">
+        {video.creatorAvatarUrl?<img className="yt-channel-avatar" src={video.creatorAvatarUrl} alt="" loading="lazy"/>:<span className="yt-channel-avatar yt-avatar-fallback">{(video.creatorName||video.titleName||'R').slice(0,1).toUpperCase()}</span>}
+        <div className="yt-video-text"><h3>{video.videoTitle||video.titleName||'Related video'}</h3><p>{video.creatorName||'Ryko Collection'}</p><p>{video.titleName||'Ryko video catalogue'}</p>{video.actionUrl&&<a className="yt-related" href={video.actionUrl} target="_blank" rel="noopener noreferrer">{video.actionType==='read'?'View title':'Related link'} <ExternalLink size={11}/></a>}</div>
+        <button className="yt-more" onClick={()=>setPlayingId(playing?null:video.id)} aria-label={playing?'Close player':'Play video'}>{playing?<X size={20}/>:<span>•••</span>}</button>
       </div>
     </article>;
   };
-  return <main className="video-page video-feed-page">
-    <div className="video-toolbar"><div><span className="eyebrow">RYKO COLLECTION VIDEO LIBRARY</span><h1>Videos &amp; <em>Shorts.</em></h1><p>Discover clips and full videos curated in your Ryko website catalogue.</p></div></div>
-    <div className="video-search-tools"><label className="large-search"><Search/><input value={term} onChange={event=>setTerm(event.target.value)} placeholder="Search videos, creators or titles..." autoComplete="off"/></label></div>
-    {error && <div className="notice">{error}</div>}
-    {loading ? <div className="video-loading">Loading your Ryko videos…</div> : <>
-      {shorts.length > 0 && <section className="video-feed-section video-shorts-section"><div className="section-head"><div><h2>Shorts</h2><p>Quick vertical clips from your collection</p></div><span className="results-caption">{shorts.length} shorts</span></div><div className="video-shorts-grid">{shorts.map(video=>renderCard(video,true))}</div></section>}
-      {regularVideos.length > 0 && <section className="video-feed-section video-regular-section"><div className="section-head"><div><h2>Videos</h2><p>Trailers, edits and longer videos</p></div><span className="results-caption">{regularVideos.length} videos</span></div><div className="video-feed-list">{regularVideos.map(video=>renderCard(video,false))}</div></section>}
-      {!filtered.length && <div className="empty-state"><Search size={26}/><h3>No videos found</h3><p>Try another title, creator or video name.</p></div>}
-    </>}
-    {!loading && hasMore && <div className="load-more-wrap"><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading…':'Load more videos'}</button></div>}
-    <p className="fine-print">Each video plays inside its own card. Playback depends on the original provider's embed permissions.</p>
+  return <main className="video-page yt-page">
+    <header className="yt-topbar"><div className="yt-brand"><span className="yt-brand-mark"><Play size={17} fill="currentColor"/></span><strong>Ryko<span>Tube</span></strong><small>Collection</small></div><label className="yt-search"><Search size={19}/><input value={term} onChange={e=>setTerm(e.target.value)} placeholder="Search videos" autoComplete="off"/>{term&&<button onClick={()=>setTerm('')} aria-label="Clear search"><X size={16}/></button>}</label></header>
+    <nav className="yt-filter-bar" aria-label="Video categories">
+      {([{id:'all',label:'All',count:searched.length},{id:'videos',label:'Videos',count:regular.length},{id:'shorts',label:'Shorts',count:shorts.length}] as const).map(item=><button key={item.id} className={filter===item.id?'active':''} onClick={()=>setFilter(item.id)}>{item.label}</button>)}
+    </nav>
+    {error&&<div className="notice">{error}</div>}
+    {loading?<div className="video-loading">Loading your Ryko video library…</div>:visible.length?<>
+      {filter==='all'&&shorts.length>0&&<section className="yt-section yt-shorts-section"><div className="yt-section-heading"><div><h2><span className="yt-shorts-symbol">▰</span> Shorts</h2><p>Quick clips from your collection</p></div><span>{shorts.length} clips</span></div><div className="yt-shorts-grid">{shorts.map(v=>card(v,true))}</div></section>}
+      {filter==='all'&&regular.length>0&&<section className="yt-section"><div className="yt-section-heading"><div><h2>Videos</h2><p>Trailers, edits and full-length videos</p></div><span>{regular.length} videos</span></div><div className="yt-video-feed">{regular.map(v=>card(v,false))}</div></section>}
+      {filter!=='all'&&<section className="yt-section"><div className="yt-section-heading"><div><h2>{filter==='shorts'?'Shorts':'Videos'}</h2><p>{filter==='shorts'?'Vertical quick clips':'Trailers, edits and full-length videos'}</p></div><span>{visible.length} results</span></div><div className={filter==='shorts'?'yt-shorts-grid':'yt-video-feed'}>{visible.map(v=>card(v,filter==='shorts'))}</div></section>}
+    </>:<div className="yt-empty"><Play size={28}/><h3>{term?'No matching videos':'No videos yet'}</h3><p>{term?'Try another title or creator.':'Videos added to the Ryko website catalogue will appear here.'}</p></div>}
+    {!loading&&hasMore&&<div className="load-more-wrap"><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading…':'Load more'}</button></div>}
+    <p className="yt-disclaimer">Playback availability depends on each original video provider and its embedding settings.</p>
   </main>;
 }
 function BottomNavigation() {
