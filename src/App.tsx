@@ -8,13 +8,15 @@ import { supabase } from './lib/supabase';
 import { AnimeComments } from './components/AnimeComments';
 import { ExtensionPage } from './components/ExtensionPage';
 import './components/extension-page.css';
+import { AdminWorkspace } from './components/AdminWorkspace';
+import './components/admin-workspace.css';
 
 type StoredProgress = { id: string; title: string; image: string; progress: number; updated: number };
 const readStore = <T,>(key: string, fallback: T): T => {
   try { const value = localStorage.getItem(key); return value ? JSON.parse(value) as T : fallback; } catch { return fallback; }
 };
 
-function Header({ user, onSignOut }: { user: User | null; onSignOut: () => void }) {
+function Header({ user, isAdmin, onSignOut }: { user: User | null; isAdmin: boolean; onSignOut: () => void }) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState('');
   const navigate = useNavigate();
@@ -24,7 +26,7 @@ function Header({ user, onSignOut }: { user: User | null; onSignOut: () => void 
   return <header className="topbar"><div className="nav-wrap">
     <Link to="/" className="brand"><span className="brand-mark">R</span><span>RYKOCCLLECTION</span></Link>
     <nav className={open ? 'nav-links open' : 'nav-links'}>
-      <Link to="/"><Compass size={16}/> Discover</Link><Link to="/search">Explore</Link><Link to="/watchlist"><Bookmark size={16}/> My list</Link><Link to="/video"><Tv size={16}/> Video</Link><Link to="/privacy"><ShieldCheck size={16}/> Privacy</Link>
+      <Link to="/"><Compass size={16}/> Discover</Link><Link to="/search">Explore</Link><Link to="/watchlist"><Bookmark size={16}/> My list</Link><Link to="/video"><Tv size={16}/> Video</Link><Link to="/privacy"><ShieldCheck size={16}/> Privacy</Link>{isAdmin && <Link to="/admin"><ShieldCheck size={16}/> Admin workspace</Link>}
     </nav>
     <form className="nav-search" onSubmit={submit}><Search size={17}/><input value={term} onChange={e => setTerm(e.target.value)} placeholder="Search anime..." aria-label="Search anime"/><kbd>↵</kbd></form>
     {user && <div className="nav-account"><span>{String(user.user_metadata?.display_name || "Reader")}</span><button onClick={onSignOut}>Sign out</button></div>}
@@ -497,7 +499,7 @@ function PrivacyPage() {
 }
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(null);\n  const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
@@ -509,5 +511,5 @@ export default function App() {
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
   const signOut = () => { void supabase.auth.signOut(); };
-  return <><Header user={user} onSignOut={signOut}/><Routes><Route path="/" element={<Home/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/anime/:id" element={<DetailPage user={user}/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="/extensions" element={<ExtensionPage/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer></>;
+  return <><Header user={user} onSignOut={signOut}/><Routes><Route path="/" element={<Home/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/anime/:id" element={<DetailPage user={user}/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="/extensions" element={<ExtensionPage/>}/><Route path="/admin" element={<AdminWorkspace/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer></>;
 }
