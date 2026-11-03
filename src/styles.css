@@ -18,3 +18,26 @@
 .video-frame-wrap iframe{display:block;width:100%;height:100%;border:0;background:#08090d}
 .video-page>.fine-print{color:#85838f;line-height:1.7;margin-top:13px}
 @media(max-width:700px){.video-page{padding:28px 3% 50px}.video-toolbar{align-items:start;flex-direction:column}.video-toolbar h1{font-size:34px}.video-toolbar p{font-size:10px}.video-actions{width:100%}.video-actions .primary-btn,.video-actions .secondary-btn{font-size:10px;padding:10px 12px}.video-frame-wrap{height:calc(100dvh - 230px);min-height:430px;border-radius:10px}.video-page>.fine-print{font-size:9px}}
+
+
+/* Official trailer discovery */
+.video-loading{min-height:300px;display:grid;place-items:center;color:#aaa;font-size:13px}
+.video-feature{border:1px solid var(--line);border-radius:17px;overflow:hidden;background:#11131a;margin-bottom:38px}
+.video-player-wrap{width:100%;aspect-ratio:16/9;max-height:75vh;background:#050507}
+.video-player-wrap iframe{width:100%;height:100%;display:block;border:0}
+.video-selected{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:19px 22px}
+.video-selected h2{font:700 19px Manrope;margin:7px 0}
+.video-selected p{font-size:11px;color:#888;margin:0}
+.video-trailer-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:18px 14px}
+.video-trailer-card{padding:0;border:1px solid transparent;border-radius:12px;background:transparent;color:#fff;text-align:left;min-width:0;overflow:hidden}
+.video-trailer-card.selected{border-color:#a99bff88;background:#a99bff0b}
+.video-trailer-image{display:block;position:relative;aspect-ratio:16/10;border-radius:10px;overflow:hidden;background:#181923}
+.video-trailer-image img{width:100%;height:100%;object-fit:cover;transition:transform .3s}
+.video-trailer-card:hover img{transform:scale(1.04)}
+.video-play-icon{position:absolute;inset:0;display:grid;place-items:center;background:#0004;color:white}
+.video-play-icon svg{filter:drop-shadow(0 2px 8px #000)}
+.video-trailer-title{display:block;font-size:11px;font-weight:700;line-height:1.45;padding:9px 2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.video-trailer-meta{display:block;color:#85838f;font-size:9px;padding:4px 2px 9px}
+.video-page>.fine-print{margin-top:22px}
+@media(max-width:900px){.video-trailer-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:600px){.video-trailer-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 10px}.video-selected{align-items:start;flex-direction:column;padding:15px}.video-selected h2{font-size:16px}.video-player-wrap{aspect-ratio:16/9}.video-feature{border-radius:12px}}
