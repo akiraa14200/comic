@@ -186,6 +186,10 @@ export async function getPopular(type: 'ANIME' | 'MANGA' = 'ANIME'): Promise<Ani
 }
 
 export async function getSeasonal(type: 'ANIME' | 'MANGA' = 'ANIME'): Promise<Anime[]> {
+  if (type === 'MANGA') {
+    const data = await query<{ Page: { media: Anime[] } }>(`query { Page(perPage: 12) { media(type: MANGA, sort: UPDATED_AT_DESC, isAdult: false) { ${fields} } } }`);
+    return data.Page?.media || [];
+  }
   const now = new Date();
   const month = now.getMonth();
   const season = month < 3 ? 'WINTER' : month < 6 ? 'SPRING' : month < 9 ? 'SUMMER' : 'FALL';
