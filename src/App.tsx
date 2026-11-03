@@ -347,6 +347,26 @@ function videoEmbedUrl(video: RelatedVideo) {
   return '';
 }
 
+function videoThumbnail(video: RelatedVideo) {
+  try {
+    const url = new URL(video.videoUrl);
+    const host = url.hostname.replace(/^www\\./, '').toLowerCase();
+    const parts = url.pathname.split('/').filter(Boolean);
+    let id = '';
+    if (host === 'youtu.be') id = parts[0] || '';
+    else if (host.endsWith('youtube.com') || host.endsWith('youtube-nocookie.com')) {
+      id = url.searchParams.get('v') || (['embed','shorts','live','v'].includes(parts[0]) ? parts[1] : '') || '';
+    }
+    if (id && /^[a-zA-Z0-9_-]{6,}$/.test(id)) return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+  } catch { /* Use the saved title cover for unsupported or malformed URLs. */ }
+  return video.titleCover || '';
+}
+function isShortVideo(video: RelatedVideo) {
+  try {
+    const url = new URL(video.videoUrl);
+    return /\\/(shorts|reel|reels)\\//i.test(url.pathname);
+  } catch { return false; }
+}
 function VideoPage() {
   const [videos, setVideos] = useState<RelatedVideo[]>([]);
   const [page, setPage] = useState(1);
@@ -366,10 +386,17 @@ function VideoPage() {
   };
   useEffect(() => { let active = true; setLoading(true); getRelatedVideos(1).then(data => { if (!active) return; setVideos(data); setSelected(data[0] || null); setHasMore(data.length === 40); }).catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load related videos from Ryko.'); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, []);
   const filtered = videos.filter(video => [video.videoTitle, video.creatorName, video.titleName].join(' ').toLowerCase().includes(term.toLowerCase()));
+  const shorts = filtered.filter(isShortVideo);
+  const regularVideos = filtered.filter(video => !isShortVideo(video));
   const embed = selected ? videoEmbedUrl(selected) : '';
   const loadMore = async () => { if (loadingMore || !hasMore) return; setLoadingMore(true); setError(''); await load(page + 1, true); setLoadingMore(false); };
+  const chooseVideo = (video: RelatedVideo) => { setSelected(video); window.scrollTo({top:0,behavior:'smooth'}); };
+  const renderCard = (video: RelatedVideo, short = false) => <button key={video.id} className={`video-trailer-card ${short ? 'video-short-card' : 'video-regular-card'} ${selected?.id===video.id?'selected':''}`} onClick={()=>chooseVideo(video)}>
+    <span className="video-trailer-image">{videoThumbnail(video) ? <img src={videoThumbnail(video)} alt={video.videoTitle || video.titleName || 'Video thumbnail'} loading="lazy" onError={event=>{event.currentTarget.onerror=null;event.currentTarget.src=video.titleCover || '/placeholder-poster.svg';}}/> : <span className="video-play-icon"><Play size={19} fill="currentColor"/></span>}<span className="video-play-icon"><Play size={19} fill="currentColor"/></span>{short && <span className="video-short-badge">SHORT</span>}</span>
+    <span className="video-trailer-title">{video.videoTitle || video.titleName || 'Related video'}</span><span className="video-trailer-meta">{video.creatorName || video.titleName || 'Ryko'}{video.releaseYear ? ` · ${video.releaseYear}` : ''}</span>
+  </button>;
   return <main className="video-page">
-    <div className="video-toolbar"><div><span className="eyebrow">RYKOCCLLECTION VIDEO LIBRARY</span><h1>Related <em>videos.</em></h1><p>All videos curated and added to your Ryko website catalogue.</p></div></div>
+    <div className="video-toolbar"><div><span className="eyebrow">RYKOCCLLECTION VIDEO LIBRARY</span><h1>Videos &amp; <em>Shorts.</em></h1><p>Discover clips and full videos curated in your Ryko website catalogue.</p></div></div>
     <div className="video-search-tools"><label className="large-search"><Search/><input value={term} onChange={event=>setTerm(event.target.value)} placeholder="Search videos, creators or titles..." autoComplete="off"/></label></div>
     {error && <div className="notice">{error}</div>}
     {loading ? <div className="video-loading">Loading your Ryko videos…</div> : selected ? <section className="video-feature">
@@ -377,9 +404,11 @@ function VideoPage() {
       <div className="video-selected"><div><span className="eyebrow">NOW PLAYING</span><h2>{selected.videoTitle || selected.titleName || 'Related video'}</h2><p>{selected.creatorName ? `By ${selected.creatorName} · ` : ''}{selected.titleName || 'Ryko collection'}</p></div><a className="secondary-btn" href={selected.videoUrl} target="_blank" rel="noopener noreferrer">Open original <ExternalLink size={14}/></a></div>
       {selected.actionUrl && <div className="video-action-link"><a className="secondary-btn" href={selected.actionUrl} target="_blank" rel="noopener noreferrer">{selected.actionType === 'read' ? 'Read this title' : 'Related link'} <ExternalLink size={14}/></a></div>}
     </section> : <div className="empty-state"><Play size={28}/><h3>No related videos yet</h3><p>Videos added to your website will appear here automatically.</p></div>}
-    {filtered.length > 0 && <section className="section video-library"><div className="section-head"><div><h2>All related videos</h2><p>Videos stored in your website database</p></div><span className="results-caption">{filtered.length} shown</span></div><div className="video-trailer-grid">{filtered.map(video=><button key={video.id} className={selected?.id===video.id?'video-trailer-card selected':'video-trailer-card'} onClick={()=>{setSelected(video);window.scrollTo({top:0,behavior:'smooth'});}}><span className="video-trailer-image">{video.titleCover ? <img src={video.titleCover} alt="" loading="lazy"/> : <span className="video-play-icon"><Play size={19} fill="currentColor"/></span>}<span className="video-play-icon"><Play size={19} fill="currentColor"/></span></span><span className="video-trailer-title">{video.videoTitle || video.titleName || 'Related video'}</span><span className="video-trailer-meta">{video.platform} · {video.creatorName || video.titleName || 'Ryko'}</span></button>)}</div></section>}
-    {!loading && hasMore && <div className="load-more-wrap"><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading…':'Load more related videos'}</button></div>}
-    <p className="fine-print">Videos are loaded from the same related_videos records used by the Ryko website. Playback availability depends on the original provider and its embed settings.</p>
+    {!loading && shorts.length > 0 && <section className="section video-library video-shorts-section"><div className="section-head"><div><h2>Shorts</h2><p>Quick vertical clips from your collection</p></div><span className="results-caption">{shorts.length} shorts</span></div><div className="video-shorts-row">{shorts.map(video=>renderCard(video,true))}</div></section>}
+    {!loading && regularVideos.length > 0 && <section className="section video-library video-regular-section"><div className="section-head"><div><h2>Videos</h2><p>Trailers, edits and longer videos</p></div><span className="results-caption">{regularVideos.length} videos</span></div><div className="video-trailer-grid">{regularVideos.map(video=>renderCard(video,false))}</div></section>}
+    {!loading && !filtered.length && <div className="empty-state"><Search size={26}/><h3>No videos found</h3><p>Try another title, creator or video name.</p></div>}
+    {!loading && hasMore && <div className="load-more-wrap"><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading…':'Load more videos'}</button></div>}
+    <p className="fine-print">Thumbnails are loaded from each video's provider when available, with the Ryko title cover as a fallback. Playback availability depends on the original provider and its embed settings.</p>
   </main>;
 }
 function BottomNavigation() {
