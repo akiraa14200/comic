@@ -3,13 +3,16 @@ import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-
 import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles, Tv } from 'lucide-react';
 // The application UI and page components are defined below.
 import { Anime, cleanDescription, getAnime, getPopular, getSeasonal, getTrending, imageOf, searchAnime, titleOf } from './lib/anilist';
+import type { User } from '@supabase/supabase-js';
+import { supabase } from './lib/supabase';
+import { AnimeComments } from './components/AnimeComments';
 
 type StoredProgress = { id: number; title: string; image: string; progress: number; updated: number };
 const readStore = <T,>(key: string, fallback: T): T => {
   try { const value = localStorage.getItem(key); return value ? JSON.parse(value) as T : fallback; } catch { return fallback; }
 };
 
-function Header() {
+function Header({ user, onSignOut }: { user: User | null; onSignOut: () => void }) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState('');
   const navigate = useNavigate();
@@ -22,6 +25,7 @@ function Header() {
       <Link to="/"><Compass size={16}/> Discover</Link><Link to="/search">Explore</Link><Link to="/watchlist"><Bookmark size={16}/> My list</Link><Link to="/video"><Tv size={16}/> Video</Link><Link to="/privacy"><ShieldCheck size={16}/> Privacy</Link>
     </nav>
     <form className="nav-search" onSubmit={submit}><Search size={17}/><input value={term} onChange={e => setTerm(e.target.value)} placeholder="Search anime..." aria-label="Search anime"/><kbd>↵</kbd></form>
+    {user && <div className="nav-account"><span>{String(user.user_metadata?.display_name || "Reader")}</span><button onClick={onSignOut}>Sign out</button></div>}
     <button className="icon-btn mobile-menu" onClick={() => setOpen(!open)} aria-label="Toggle menu">{open ? <X/> : <Menu/>}</button>
   </div></header>;
 }
@@ -115,7 +119,7 @@ function SearchPage() {
   </main>;
 }
 
-function DetailPage() {
+function DetailPage({ user }: { user: User | null }) {
   const { id } = useParams();
   const [anime, setAnime] = useState<Anime | null>(null);
   const [loading, setLoading] = useState(true);
@@ -138,6 +142,7 @@ function DetailPage() {
       <div className="detail-main"><img className="detail-poster" src={imageOf(anime)} alt={titleOf(anime)}/><div className="detail-info"><span className="eyebrow">{anime.format || 'ANIME'} {anime.seasonYear ? `· ${anime.seasonYear}` : ''}</span><h1>{titleOf(anime)}</h1>{anime.title.native && <p className="native-title">{anime.title.native}</p>}<div className="detail-stats">{anime.averageScore && <span><Star size={15} fill="currentColor"/> {(anime.averageScore/10).toFixed(1)} / 10</span>}<span><Play size={14}/> {anime.episodes || '—'} episodes</span><span><Clock3 size={14}/> {anime.status?.replaceAll('_',' ') || 'Unknown status'}</span></div><p className="detail-description">{cleanDescription(anime.description) || 'No description is available for this title yet.'}</p><div className="genre-tags">{anime.genres?.map(g=><span key={g}>{g}</span>)}</div><div className="hero-actions"><button className="primary-btn" onClick={start}><Play size={16} fill="currentColor"/> Open player</button><button className="secondary-btn" onClick={()=>toggle(anime)}>{isSaved ? <Heart size={16} fill="currentColor"/> : <Bookmark size={16}/>} {isSaved ? 'In my list' : 'Add to list'}</button>{anime.siteUrl && <a className="secondary-btn" href={anime.siteUrl} target="_blank" rel="noreferrer">AniList <ExternalLink size={14}/></a>}</div></div></div>
       {showPlayer && <div className="player-panel"><div className="section-head"><div><h2>Watch panel</h2><p>Use a video URL you are authorized to access.</p></div><button className="icon-btn" onClick={()=>setShowPlayer(false)} aria-label="Close player"><X/></button></div><div className="source-input"><input value={source} onChange={e=>setSource(e.target.value)} placeholder="Paste an authorized HTTPS video URL"/><button className="primary-btn" onClick={()=>{if(source.startsWith('https://')) window.open(source,'_blank','noopener,noreferrer');}}>Open source</button></div><p className="fine-print">RykocCllection does not host episodes or provide unauthorized streams. Playback and advertising behavior on external providers is controlled by those providers.</p></div>}
       <div className="detail-extra"><div><h3>About this title</h3><p>{anime.studios?.nodes?.map(s=>s.name).join(', ') || 'Studio information unavailable'}</p></div><div><h3>Release details</h3><p>{anime.seasonYear || 'Year unknown'} · {anime.format || 'Anime'} · {anime.episodes || 'Unknown'} episodes</p></div></div>
+      <AnimeComments animeId={anime.id} animeTitle={titleOf(anime)} user={user}/>
     </div>
   </main>;
 }
@@ -200,5 +205,17 @@ function PrivacyPage() {
 }
 
 export default function App() {
-  return <><Header/><Routes><Route path="/" element={<Home/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/anime/:id" element={<DetailPage/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Anime metadata via AniList · Independent fan discovery project</span></footer></>;
+  const [user, setUser] = useState<User | null>(null);
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (active) setUser(data.session?.user ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => { active = false; subscription.unsubscribe(); };
+  }, []);
+  const signOut = () => { void supabase.auth.signOut(); };
+  return <><Header user={user} onSignOut={signOut}/><Routes><Route path="/" element={<Home/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/anime/:id" element={<DetailPage user={user}/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Anime metadata via AniList · Independent fan discovery project</span></footer></>;
 }
