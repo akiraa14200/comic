@@ -80,11 +80,32 @@ const memoryCache = new Map<string, { expires: number; value: unknown }>();
 const inFlightRequests = new Map<string, Promise<unknown>>();
 const CACHE_TTL = 10 * 60 * 1000;
 const DETAIL_CACHE_TTL = 30 * 60 * 1000;
+const PERSISTENT_CACHE_KEY = 'rykoc-anilist-cache-v1';
+const OFFLINE_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+
+function readPersistentCache<T>(key: string): T | null {
+  try {
+    const store = JSON.parse(localStorage.getItem(PERSISTENT_CACHE_KEY) || '{}') as Record<string, { expires: number; value: T }>;
+    const item = store[key];
+    return item && item.expires > Date.now() ? item.value : null;
+  } catch { return null; }
+}
+
+function writePersistentCache(key: string, value: unknown) {
+  try {
+    const store = JSON.parse(localStorage.getItem(PERSISTENT_CACHE_KEY) || '{}') as Record<string, { expires: number; value: unknown }>;
+    store[key] = { expires: Date.now() + OFFLINE_CACHE_TTL, value };
+    const entries = Object.entries(store).slice(-60);
+    localStorage.setItem(PERSISTENT_CACHE_KEY, JSON.stringify(Object.fromEntries(entries)));
+  } catch { /* Browser storage can be full or unavailable; memory caching still works. */ }
+}
 
 async function queryUncached<T>(queryText: string, variables: Record<string, unknown> = {}, cacheTtl = CACHE_TTL): Promise<T> {
   const cacheKey = JSON.stringify([queryText, variables]);
   const cached = memoryCache.get(cacheKey);
   if (cached && cached.expires > Date.now()) return cached.value as T;
+  const offlineCached = readPersistentCache<T>(cacheKey);
+  if (offlineCached) memoryCache.set(cacheKey, { expires: Date.now() + cacheTtl, value: offlineCached });
 
   let lastError: Error = new Error('Anime catalogue is temporarily unavailable.');
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -129,6 +150,7 @@ async function queryUncached<T>(queryText: string, variables: Record<string, unk
       }
       if (payload.data) {
         memoryCache.set(cacheKey, { expires: Date.now() + cacheTtl, value: payload.data });
+        writePersistentCache(cacheKey, payload.data);
         if (memoryCache.size > 200) {
           const oldestKey = memoryCache.keys().next().value;
           if (oldestKey) memoryCache.delete(oldestKey);
@@ -150,9 +172,11 @@ async function queryUncached<T>(queryText: string, variables: Record<string, unk
         await new Promise(resolve => window.setTimeout(resolve, 450 * (attempt + 1)));
         continue;
       }
+      if (offlineCached) return offlineCached;
       throw lastError;
     }
   }
+  if (offlineCached) return offlineCached;
   throw lastError;
 }
 
@@ -199,10 +223,10 @@ export async function getSeasonal(type: 'ANIME' | 'MANGA' = 'ANIME'): Promise<An
   return data.Page?.media || [];
 }
 
-export async function searchAnime(search: string, page = 1, genre?: string, status?: string, format?: string, type: 'ANIME' | 'MANGA' = 'ANIME'): Promise<Anime[]> {
+export async function searchAnime(search: string, page = 1, genre?: string, status?: string, format?: string, type: 'ANIME' | 'MANGA' = 'ANIME', year?: number, minScore?: number, sort: string = 'SEARCH_MATCH'): Promise<Anime[]> {
   const data = await query<{ Page: { media: Anime[] } }>(
-    `query($search: String, $page: Int, $genre: String, $status: MediaStatus, $format: MediaFormat, $type: MediaType!) { Page(page: $page, perPage: 50) { media(type: $type, search: $search, genre: $genre, status: $status, format: $format, sort: SEARCH_MATCH, isAdult: false) { ${fields} } } }`,
-    { search: search || undefined, page, genre: genre || undefined, status: status || undefined, format: format || undefined, type }
+    `query($search: String, $page: Int, $genre: String, $status: MediaStatus, $format: MediaFormat, $type: MediaType!, $year: Int, $minScore: Int, $sort: [MediaSort!]) { Page(page: $page, perPage: 50) { media(type: $type, search: $search, genre: $genre, status: $status, format: $format, seasonYear: $year, averageScore_greater: $minScore, sort: $sort, isAdult: false) { ${fields} } } }`,
+    { search: search || undefined, page, genre: genre || undefined, status: status || undefined, format: format || undefined, type, year: year || undefined, minScore: minScore || undefined, sort: [sort] }
   );
   return data.Page?.media || [];
 }
