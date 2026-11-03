@@ -328,13 +328,9 @@ function videoEmbedUrl(video: RelatedVideo) {
       if (!id && ['embed', 'shorts', 'live', 'v'].includes(parts[0])) id = parts[1];
       if (!id && parts.length === 1) id = parts[0];
       if (!id || !/^[a-zA-Z0-9_-]{6,}$/.test(id)) return '';
-      const params = new URLSearchParams({
-        rel: '0',
-        playsinline: '1',
-        enablejsapi: '1',
-        origin: window.location.origin
-      });
-      return `https://www.youtube-nocookie.com/embed/${id}?${params.toString()}`;
+      // Match the known-working AniList trailer player exactly. Avoid enablejsapi/origin
+      // parameters here: this app only needs plain iframe playback, not the JS player API.
+      return `https://www.youtube-nocookie.com/embed/${id}?rel=0`;
     }
 
     if (host === 'dai.ly' || host.endsWith('dailymotion.com')) {
@@ -377,7 +373,7 @@ function VideoPage() {
     <div className="video-search-tools"><label className="large-search"><Search/><input value={term} onChange={event=>setTerm(event.target.value)} placeholder="Search videos, creators or titles..." autoComplete="off"/></label></div>
     {error && <div className="notice">{error}</div>}
     {loading ? <div className="video-loading">Loading your Ryko videos…</div> : selected ? <section className="video-feature">
-      <div className="video-player-wrap">{embed ? <iframe key={selected.id} src={embed} title={selected.videoTitle || `Video for ${selected.titleName || 'Ryko title'}`} loading="eager" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/> : <div className="entry-empty">This provider does not offer an embeddable player. <a href={selected.videoUrl} target="_blank" rel="noopener noreferrer">Open video <ExternalLink size={13}/></a></div>}</div>
+      <div className="video-player-wrap">{embed ? <iframe key={selected.id} src={embed} title={selected.videoTitle || `Video for ${selected.titleName || 'Ryko title'}`} loading="eager" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/> : <div className="entry-empty">This provider does not offer an embeddable player. <a href={selected.videoUrl} target="_blank" rel="noopener noreferrer">Open video <ExternalLink size={13}/></a></div>}</div>
       <div className="video-selected"><div><span className="eyebrow">NOW PLAYING</span><h2>{selected.videoTitle || selected.titleName || 'Related video'}</h2><p>{selected.creatorName ? `By ${selected.creatorName} · ` : ''}{selected.titleName || 'Ryko collection'}</p></div><a className="secondary-btn" href={selected.videoUrl} target="_blank" rel="noopener noreferrer">Open original <ExternalLink size={14}/></a></div>
       {selected.actionUrl && <div className="video-action-link"><a className="secondary-btn" href={selected.actionUrl} target="_blank" rel="noopener noreferrer">{selected.actionType === 'read' ? 'Read this title' : 'Related link'} <ExternalLink size={14}/></a></div>}
     </section> : <div className="empty-state"><Play size={28}/><h3>No related videos yet</h3><p>Videos added to your website will appear here automatically.</p></div>}
