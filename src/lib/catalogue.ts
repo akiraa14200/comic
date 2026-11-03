@@ -193,3 +193,28 @@ export async function getAnimeCharacters(id: string, page: number): Promise<NonN
 export const titleOf = (anime: Anime) => anime.title?.english || anime.title?.romaji || anime.title?.native || 'Untitled';
 export const imageOf = (anime: Anime) => anime.coverImage?.extraLarge || anime.coverImage?.large || anime.bannerImage || '';
 export const cleanDescription = (value = '') => value.replace(/<[^>]*>/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#039;|&#39;/g, "'").replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
+
+export async function enrichVideoMetadata(videos: RelatedVideo[]): Promise<RelatedVideo[]> {
+  const youtubeVideos = videos.filter(video => /youtu\\.be|youtube(?:-nocookie)?\\.com/i.test(video.videoUrl));
+  if (!youtubeVideos.length) return videos;
+  try {
+    const { data, error } = await supabase.functions.invoke('video-metadata', {
+      body: { urls: youtubeVideos.map(video => video.videoUrl) }
+    });
+    if (error) throw error;
+    const results = new Map<string, any>((data?.results || []).map((item: any) => [item.input, item]));
+    return videos.map(video => {
+      const meta = results.get(video.videoUrl);
+      if (!meta?.ok) return video;
+      return {
+        ...video,
+        videoTitle: meta.title || video.videoTitle,
+        creatorName: meta.channelName || video.creatorName,
+        creatorAvatarUrl: meta.channelAvatarUrl || video.creatorAvatarUrl
+      };
+    });
+  } catch (error) {
+    console.warn('Could not refresh YouTube video metadata:', error);
+    return videos;
+  }
+}
