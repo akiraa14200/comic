@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles, Tv } from 'lucide-react';
+import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles, Tv, Info, Users, FileText, CalendarDays, Globe, UserRound, Youtube, ChevronDown, RotateCw } from 'lucide-react';
 // The application UI and page components are defined below.
-import { Anime, cleanDescription, getAnime, getPopular, getSeasonal, getTrending, imageOf, searchAnime, titleOf } from './lib/anilist';
+import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getSeasonal, getTrending, imageOf, searchAnime, titleOf } from './lib/anilist';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { AnimeComments } from './components/AnimeComments';
@@ -124,25 +124,144 @@ function DetailPage({ user }: { user: User | null }) {
   const [anime, setAnime] = useState<Anime | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  const [activeTab, setActiveTab] = useState<'overview' | 'characters' | 'details' | 'comments'>('overview');
+  const [selectedCharacter, setSelectedCharacter] = useState<AnimeCharacter | null>(null);
+  const [characterPage, setCharacterPage] = useState(1);
+  const [loadingCharacters, setLoadingCharacters] = useState(false);
+  const [characterError, setCharacterError] = useState('');
   const { saved, toggle, remember } = useLibrary();
   const [showPlayer, setShowPlayer] = useState(false);
   const [source, setSource] = useState('');
+
   useEffect(() => {
-    let active = true; setLoading(true);
-    getAnime(Number(id)).then(data => { if(active) setAnime(data); }).catch(e => { if(active) setError(e instanceof Error ? e.message : 'Could not load anime.'); }).finally(()=>{if(active)setLoading(false);});
+    let active = true;
+    setLoading(true); setError(''); setAnime(null); setActiveTab('overview'); setSelectedCharacter(null);
+    const animeId = Number(id);
+    getAnime(animeId)
+      .then(data => { if (active) { setAnime(data); if (!data) setError('AniList could not find this entry.'); } })
+      .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime metadata.'); })
+      .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [id]);
-  if (loading) return <main className="content-page"><div className="detail-skeleton"/></main>;
-  if (!anime) return <main className="content-page"><div className="empty-state"><h2>Anime not found</h2><p>{error || 'This title may no longer be available.'}</p><Link className="secondary-btn" to="/search">Back to explore</Link></div></main>;
+  }, [id, attempt]);
+
+  const loadMoreCharacters = async () => {
+    if (!anime?.characters?.pageInfo.hasNextPage || loadingCharacters) return;
+    const nextPage = characterPage + 1;
+    setLoadingCharacters(true); setCharacterError('');
+    try {
+      const result = await getAnimeCharacters(anime.id, nextPage);
+      setAnime(current => current ? {
+        ...current,
+        characters: {
+          pageInfo: result.pageInfo,
+          edges: [...(current.characters?.edges || []), ...result.edges.filter(edge => !(current.characters?.edges || []).some(old => old.node.id === edge.node.id))]
+        }
+      } : current);
+      setCharacterPage(nextPage);
+    } catch (e) {
+      setCharacterError(e instanceof Error ? e.message : 'Could not load more characters.');
+    } finally { setLoadingCharacters(false); }
+  };
+
+  if (loading) return <main className="content-page"><div className="detail-skeleton"/><p className="metadata-loading-note">Loading entry information and character data…</p></main>;
+  if (!anime) return <main className="content-page"><div className="empty-state"><h2>Entry unavailable</h2><p>{error || 'This title may no longer be available.'}</p><button className="secondary-btn" onClick={() => setAttempt(value => value + 1)}><RotateCw size={15}/> Try again</button><Link className="secondary-btn" to="/search">Back to explore</Link></div></main>;
+
   const isSaved = saved.some(a => a.id === anime.id);
   const start = () => { remember(anime); setShowPlayer(true); };
+  const trailerId = anime.trailer?.site?.toLowerCase() === 'youtube' && /^[a-zA-Z0-9_-]{6,}$/.test(anime.trailer.id) ? anime.trailer.id : null;
+  const staff = anime.staff?.edges || [];
+  const authors = staff.filter(item => /author|writer|original creator|story/i.test(item.role)).map(item => item.node.name.full).filter(Boolean);
+  const artists = staff.filter(item => /artist|illustrat|character design|art direction|story & art/i.test(item.role)).map(item => item.node.name.full).filter(Boolean);
+  const releaseDate = anime.startDate?.year
+    ? [anime.startDate.year, anime.startDate.month, anime.startDate.day].filter(Boolean).join('-')
+    : anime.seasonYear ? String(anime.seasonYear) : 'Not announced';
+  const sourceName = anime.source?.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, char => char.toUpperCase()) || 'Not specified';
+  const tabs = [
+    { id: 'overview' as const, label: 'Overview', icon: <Info size={16}/> },
+    { id: 'characters' as const, label: 'Characters', icon: <Users size={16}/>, count: anime.characters?.edges.length },
+    { id: 'details' as const, label: 'Details', icon: <FileText size={16}/> },
+    { id: 'comments' as const, label: 'Comments', icon: <MessageCircle size={16}/> }
+  ];
+
   return <main className="detail-page">
     <div className="detail-backdrop" style={{backgroundImage:`linear-gradient(0deg,#08090d 0%,rgba(8,9,13,.72) 100%),url(${anime.bannerImage || imageOf(anime)})`}}/>
-    <div className="detail-content"><Link to="/search" className="back-link"><ArrowLeft size={16}/> Back to explore</Link>
-      <div className="detail-main"><img className="detail-poster" src={imageOf(anime)} alt={titleOf(anime)}/><div className="detail-info"><span className="eyebrow">{anime.format || 'ANIME'} {anime.seasonYear ? `· ${anime.seasonYear}` : ''}</span><h1>{titleOf(anime)}</h1>{anime.title.native && <p className="native-title">{anime.title.native}</p>}<div className="detail-stats">{anime.averageScore && <span><Star size={15} fill="currentColor"/> {(anime.averageScore/10).toFixed(1)} / 10</span>}<span><Play size={14}/> {anime.episodes || '—'} episodes</span><span><Clock3 size={14}/> {anime.status?.replaceAll('_',' ') || 'Unknown status'}</span></div><p className="detail-description">{cleanDescription(anime.description) || 'No description is available for this title yet.'}</p><div className="genre-tags">{anime.genres?.map(g=><span key={g}>{g}</span>)}</div><div className="hero-actions"><button className="primary-btn" onClick={start}><Play size={16} fill="currentColor"/> Open player</button><button className="secondary-btn" onClick={()=>toggle(anime)}>{isSaved ? <Heart size={16} fill="currentColor"/> : <Bookmark size={16}/>} {isSaved ? 'In my list' : 'Add to list'}</button>{anime.siteUrl && <a className="secondary-btn" href={anime.siteUrl} target="_blank" rel="noreferrer">AniList <ExternalLink size={14}/></a>}</div></div></div>
+    <div className="detail-content">
+      <Link to="/search" className="back-link"><ArrowLeft size={16}/> Back to explore</Link>
+      <div className="detail-main">
+        <img className="detail-poster" src={imageOf(anime) || '/placeholder-poster.svg'} alt={titleOf(anime)} onError={event => { event.currentTarget.style.visibility = 'hidden'; }}/>
+        <div className="detail-info">
+          <span className="eyebrow">{anime.format || 'ANIME'} {anime.seasonYear ? `· ${anime.seasonYear}` : ''}</span>
+          <h1>{titleOf(anime)}</h1>
+          {anime.title.native && <p className="native-title">{anime.title.native}</p>}
+          <div className="detail-stats">
+            {anime.averageScore ? <span><Star size={15} fill="currentColor"/> {(anime.averageScore/10).toFixed(1)} / 10</span> : null}
+            <span><Play size={14}/> {anime.episodes ?? '—'} episodes</span>
+            <span><Clock3 size={14}/> {anime.status?.replaceAll('_',' ') || 'Unknown status'}</span>
+          </div>
+          <div className="genre-tags">{anime.genres?.map(g=><span key={g}>{g}</span>)}</div>
+          <div className="hero-actions">
+            <button className="secondary-btn" onClick={()=>toggle(anime)}>{isSaved ? <Heart size={16} fill="currentColor"/> : <Bookmark size={16}/>} {isSaved ? 'In my list' : 'Add to list'}</button>
+            {anime.siteUrl && <a className="secondary-btn" href={anime.siteUrl} target="_blank" rel="noreferrer">AniList <ExternalLink size={14}/></a>}
+          </div>
+        </div>
+      </div>
+
+      <div className="entry-tabs" role="tablist" aria-label="Anime entry sections">
+        {tabs.map(tab=><button key={tab.id} type="button" role="tab" aria-selected={activeTab===tab.id} className={activeTab===tab.id?'entry-tab active':'entry-tab'} onClick={()=>{setActiveTab(tab.id);setSelectedCharacter(null);}}>
+          {tab.icon}<span>{tab.label}</span>{tab.id==='characters' && typeof tab.count==='number' && <small>{tab.count}{anime.characters?.pageInfo.hasNextPage?'+':''}</small>}
+        </button>)}
+      </div>
+
+      {activeTab === 'overview' && <section className="entry-panel overview-panel">
+        <div className="entry-section-heading"><span className="eyebrow">THE STORY</span><h2>Overview</h2></div>
+        <div className="overview-description">{cleanDescription(anime.description) || 'No description is available for this entry yet.'}</div>
+        <div className="overview-trailer">
+          <div className="entry-section-heading"><span className="eyebrow">OFFICIAL PREVIEW</span><h2>Trailer</h2></div>
+          {trailerId ? <div className="entry-trailer-frame"><iframe src={`https://www.youtube-nocookie.com/embed/${trailerId}?rel=0`} title={`Trailer for ${titleOf(anime)}`} allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/></div> :
+            <div className="entry-empty"><Youtube size={22}/><span>No supported trailer is listed for this entry.</span>{anime.siteUrl && <a href={anime.siteUrl} target="_blank" rel="noreferrer">Check entry sources <ExternalLink size={13}/></a>}</div>}
+        </div>
+      </section>}
+
+      {activeTab === 'characters' && <section className="entry-panel characters-panel">
+        <div className="entry-section-heading"><span className="eyebrow">CAST & PROFILES</span><h2>Characters <small>{anime.characters?.edges.length || 0}{anime.characters?.pageInfo.hasNextPage?'+':''}</small></h2><p>Select a character to open their profile.</p></div>
+        {anime.characters?.edges.length ? <div className="entry-character-grid">{anime.characters.edges.map(({node,role})=><button className="entry-character-card" key={node.id} onClick={()=>setSelectedCharacter(node)}>
+          <img src={node.image?.large || node.image?.medium || ''} alt={node.name.full || 'Character'} loading="lazy" onError={event=>{event.currentTarget.style.visibility='hidden';}}/>
+          <span className="entry-character-name">{node.name.full || 'Unknown character'}</span><small>{role || 'Character'}</small>
+        </button>)}</div> : <div className="entry-empty"><Users size={22}/><span>Character information is not available for this entry yet.</span></div>}
+        {characterError && <p className="metadata-error">{characterError}</p>}
+        {anime.characters?.pageInfo.hasNextPage && <button className="secondary-btn load-characters-btn" onClick={loadMoreCharacters} disabled={loadingCharacters}>{loadingCharacters?'Loading…':'Load more characters'} <ChevronDown size={15}/></button>}
+        {selectedCharacter && <div className="character-modal-backdrop" role="presentation" onClick={()=>setSelectedCharacter(null)}>
+          <section className="character-modal" role="dialog" aria-modal="true" aria-label={selectedCharacter.name.full || 'Character details'} onClick={event=>event.stopPropagation()}>
+            <button className="character-modal-close" onClick={()=>setSelectedCharacter(null)} aria-label="Close character details"><X size={18}/></button>
+            <div className="character-modal-top"><img src={selectedCharacter.image?.large || selectedCharacter.image?.medium || ''} alt={selectedCharacter.name.full || 'Character'} onError={event=>{event.currentTarget.style.visibility='hidden';}}/><div><span className="eyebrow">CHARACTER PROFILE</span><h2>{selectedCharacter.name.full || 'Unknown character'}</h2>{selectedCharacter.name.native && <p>{selectedCharacter.name.native}</p>}<span className="character-role">{anime.characters?.edges.find(edge=>edge.node.id===selectedCharacter.id)?.role || 'Character'}</span></div></div>
+            <div className="character-facts">{selectedCharacter.gender && <span><strong>Gender</strong>{selectedCharacter.gender}</span>}{selectedCharacter.age && <span><strong>Age</strong>{selectedCharacter.age}</span>}{selectedCharacter.dateOfBirth && <span><strong>Birthday</strong>{[selectedCharacter.dateOfBirth.month,selectedCharacter.dateOfBirth.day].filter(Boolean).join('/') || 'Not listed'}</span>}{selectedCharacter.favourites ? <span><strong>Favorites</strong>{selectedCharacter.favourites.toLocaleString()}</span> : null}</div>
+            <div className="character-bio">{cleanDescription(selectedCharacter.description) || 'No biography is available for this character yet.'}</div>
+            {selectedCharacter.voiceActors?.length ? <div className="character-voice-actors"><h3>Japanese voice actors</h3>{selectedCharacter.voiceActors.slice(0,4).map(actor=><span key={actor.id}>{actor.image?.large && <img src={actor.image.large} alt=""/>}{actor.name.full || 'Voice actor'}</span>)}</div>:null}
+            {selectedCharacter.siteUrl && <a className="secondary-btn" href={selectedCharacter.siteUrl} target="_blank" rel="noreferrer">Full character profile <ExternalLink size={14}/></a>}
+          </section>
+        </div>}
+      </section>}
+
+      {activeTab === 'details' && <section className="entry-panel details-panel">
+        <div className="entry-section-heading"><span className="eyebrow">ENTRY INFORMATION</span><h2>Details</h2></div>
+        <div className="entry-details-grid">
+          <div><span>Type</span><strong>{anime.format || 'Not listed'}</strong></div>
+          <div><span>Status</span><strong>{anime.status?.replaceAll('_',' ') || 'Not listed'}</strong></div>
+          <div><span>Release</span><strong>{releaseDate}</strong></div>
+          <div><span>Author / creator</span><strong>{authors.length?authors.join(', '):'Not listed by AniList'}</strong></div>
+          <div><span>Artist</span><strong>{artists.length?artists.join(', '):'Not listed by AniList'}</strong></div>
+          <div><span>Country</span><strong>{anime.countryOfOrigin || 'Not listed'}</strong></div>
+          <div className="detail-wide"><span>Alternative titles</span><strong>{[anime.title.english,anime.title.romaji,anime.title.native,...(anime.synonyms||[])].filter((value,index,array)=>value && array.indexOf(value)===index).join(' · ') || 'Not listed'}</strong></div>
+          <div><span>Source material</span><strong>{sourceName}</strong></div>
+          <div><span>Studio</span><strong>{anime.studios?.nodes?.map(studio=>studio.name).join(', ') || 'Not listed'}</strong></div>
+        </div>
+        <div className="entry-source-links"><h3><Globe size={17}/> Source links</h3><div>{anime.siteUrl && <a href={anime.siteUrl} target="_blank" rel="noreferrer">AniList entry <ExternalLink size={13}/></a>}{(anime.externalLinks||[]).filter(link=>link.url?.startsWith('https://')).slice(0,12).map(link=><a key={link.url} href={link.url} target="_blank" rel="noreferrer">{link.site || 'External source'} <ExternalLink size={13}/></a>)}</div></div>
+      </section>}
+
+      {activeTab === 'comments' && <div className="entry-comments-panel"><AnimeComments animeId={anime.id} animeTitle={titleOf(anime)} user={user}/></div>}
+
       {showPlayer && <div className="player-panel"><div className="section-head"><div><h2>Watch panel</h2><p>Use a video URL you are authorized to access.</p></div><button className="icon-btn" onClick={()=>setShowPlayer(false)} aria-label="Close player"><X/></button></div><div className="source-input"><input value={source} onChange={e=>setSource(e.target.value)} placeholder="Paste an authorized HTTPS video URL"/><button className="primary-btn" onClick={()=>{if(source.startsWith('https://')) window.open(source,'_blank','noopener,noreferrer');}}>Open source</button></div><p className="fine-print">RykocCllection does not host episodes or provide unauthorized streams. Playback and advertising behavior on external providers is controlled by those providers.</p></div>}
-      <div className="detail-extra"><div><h3>About this title</h3><p>{anime.studios?.nodes?.map(s=>s.name).join(', ') || 'Studio information unavailable'}</p></div><div><h3>Release details</h3><p>{anime.seasonYear || 'Year unknown'} · {anime.format || 'Anime'} · {anime.episodes || 'Unknown'} episodes</p></div></div>
-      <AnimeComments animeId={anime.id} animeTitle={titleOf(anime)} user={user}/>
     </div>
   </main>;
 }
