@@ -7,55 +7,59 @@ const corsHeaders = {
 const cache = new Map<string, { at: number; value: Record<string, unknown> }>();
 const TTL = 6 * 60 * 60 * 1000;
 
-function youtubeUrl(input: unknown): string | null {
+function canonicalYouTubeUrl(input: unknown): string | null {
   if (typeof input !== "string" || input.length > 2048) return null;
   try {
     const url = new URL(input);
-    const host = url.hostname.toLowerCase().replace(/^www\./, "");
-    if (host === "youtu.be") {
-      const id = url.pathname.split("/").filter(Boolean)[0];
-      return id ? `https://www.youtube.com/watch?v=${encodeURIComponent(id)}` : null;
-    }
-    if (host === "youtube.com" || host === "m.youtube.com" || host === "youtube-nocookie.com") {
-      const parts = url.pathname.split("/").filter(Boolean);
-      const id = url.searchParams.get("v") || (["shorts", "embed", "live"].includes(parts[0]) ? parts[1] : "");
-      return id ? `https://www.youtube.com/watch?v=${encodeURIComponent(id)}` : null;
-    }
-  } catch { /* invalid URL */ }
-  return null;
+    const host = url.hostname.toLowerCase().replace(/^www\./, "").replace(/^m\./, "");
+    const parts = url.pathname.split("/").filter(Boolean);
+    let id = "";
+    if (host === "youtu.be") id = parts[0] || "";
+    else if (host === "youtube.com" || host === "youtube-nocookie.com") {
+      id = url.searchParams.get("v") || (["shorts", "embed", "live"].includes(parts[0]) ? parts[1] : "") || "";
+    } else return null;
+    return /^[a-zA-Z0-9_-]{6,}$/.test(id) ? `https://www.youtube.com/watch?v=${id}` : null;
+  } catch { return null; }
+}
+
+function extractMetaImage(html: string): string {
+  const tags = html.match(/<meta\b[^>]*>/gi) || [];
+  for (const tag of tags) {
+    const property = tag.match(/(?:property|name)=["']([^"']+)["']/i)?.[1]?.toLowerCase() || "";
+    const content = tag.match(/content=["']([^"']+)["']/i)?.[1]?.replace(/&amp;/g, "&") || "";
+    if (["og:image", "twitter:image", "twitter:image:src"].includes(property) && content.startsWith("https://")) return content;
+  }
+  const patterns = [
+    /"avatar"\s*:\s*\{[\s\S]{0,300}?"thumbnails"\s*:\s*\[\s*\{\s*"url"\s*:\s*"([^"]+)"/,
+    /"channelThumbnail"\s*:\s*\{[\s\S]{0,300}?"url"\s*:\s*"([^"]+)"/,
+    /"thumbnail"\s*:\s*\{[\s\S]{0,300}?"thumbnails"\s*:\s*\[\s*\{\s*"url"\s*:\s*"([^"]+)"/,
+  ];
+  for (const pattern of patterns) {
+    const value = html.match(pattern)?.[1]?.replace(/\\u0026/g, "&").replace(/\\\\/g, "") || "";
+    if (value.startsWith("https://")) return value;
+  }
+  return "";
 }
 
 async function getMetadata(input: string) {
-  const canonical = youtubeUrl(input);
-  if (!canonical) return { input, ok: false };
+  const canonical = canonicalYouTubeUrl(input);
+  if (!canonical) return { input, ok: false, reason: "not_youtube" };
   const cached = cache.get(canonical);
   if (cached && Date.now() - cached.at < TTL) return { input, ...cached.value };
-
   try {
     const endpoint = new URL("https://www.youtube.com/oembed");
     endpoint.searchParams.set("url", canonical);
     endpoint.searchParams.set("format", "json");
-    const response = await fetch(endpoint, { headers: { "Accept": "application/json" } });
-    if (!response.ok) return { input, ok: false };
+    const response = await fetch(endpoint, { headers: { "Accept": "application/json", "User-Agent": "Mozilla/5.0" } });
+    if (!response.ok) return { input, ok: false, reason: `oembed_${response.status}` };
     const data = await response.json();
-    let avatar = "";
     const authorUrl = typeof data.author_url === "string" ? data.author_url : "";
-    if (authorUrl.startsWith("https://www.youtube.com/") || authorUrl.startsWith("https://youtube.com/")) {
+    let avatar = "";
+    if (/^https:\/\/(?:www\.)?youtube\.com\//i.test(authorUrl)) {
       try {
-        const page = await fetch(authorUrl, { headers: { "Accept": "text/html" } });
-        if (page.ok) {
-          const html = (await page.text()).slice(0, 2_000_000);
-          const match = html.match(/<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image)["'][^>]+content=["']([^"']+)["']/i)
-            || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:image|twitter:image)["']/i);
-          const candidate = match?.[1]?.replace(/&amp;/g, "&") || "";
-          if (candidate.startsWith("https://")) avatar = candidate;
-          if (!avatar) {
-            const avatarMatch = html.match(/"avatar"\s*:\s*\{\s*"thumbnails"\s*:\s*\[\s*\{\s*"url"\s*:\s*"([^"]+)"/);
-            const candidateAvatar = avatarMatch?.[1]?.replace(/\\u0026/g, "&").replace(/\\\\/g, "") || "";
-            if (candidateAvatar.startsWith("https://")) avatar = candidateAvatar;
-          }
-        }
-      } catch { /* Keep title and channel name even if avatar lookup is unavailable. */ }
+        const page = await fetch(authorUrl, { headers: { "Accept": "text/html", "User-Agent": "Mozilla/5.0 (compatible; RykoCollection/1.0)" } });
+        if (page.ok) avatar = extractMetaImage((await page.text()).slice(0, 3000000));
+      } catch { /* The video title and channel name can still be displayed. */ }
     }
     const value = {
       ok: true,
@@ -67,7 +71,7 @@ async function getMetadata(input: string) {
     cache.set(canonical, { at: Date.now(), value });
     return { input, ...value };
   } catch {
-    return { input, ok: false };
+    return { input, ok: false, reason: "metadata_fetch_failed" };
   }
 }
 
@@ -79,8 +83,7 @@ Deno.serve(async (req: Request) => {
     const urls = Array.isArray(body?.urls) ? body.urls.slice(0, 50) : [];
     const results: Record<string, unknown>[] = [];
     for (let i = 0; i < urls.length; i += 5) {
-      const batch = await Promise.all(urls.slice(i, i + 5).map((url: string) => getMetadata(url)));
-      results.push(...batch);
+      results.push(...await Promise.all(urls.slice(i, i + 5).map((url: string) => getMetadata(url))));
     }
     return Response.json({ results }, { headers: { ...corsHeaders, "Cache-Control": "public, max-age=300" } });
   } catch {
