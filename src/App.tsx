@@ -361,12 +361,6 @@ function videoThumbnail(video: RelatedVideo) {
   } catch { /* Use the saved title cover for unsupported or malformed URLs. */ }
   return video.titleCover || '';
 }
-function isShortVideo(video: RelatedVideo) {
-  try {
-    const url = new URL(video.videoUrl);
-    return /\/(shorts|reel|reels)\//i.test(url.pathname);
-  } catch { return false; }
-}
 function detectVideoFormat(url:string) {
   try {
     const u=new URL(String(url||'').trim()),host=u.hostname.toLowerCase().replace(/^www\./,'').replace(/^m\./,'');
@@ -415,7 +409,6 @@ function VideoPage() {
       </div>
     </article>;
   };
-  const batches:(RelatedVideo[])[]=[];
   if(format==='all'){
     const shortBatches:RelatedVideo[][]=[];for(let i=0;i<shorts.length;i+=12)shortBatches.push(shorts.slice(i,i+12));
     const videoBatches:RelatedVideo[][]=[];for(let i=0;i<regular.length;i+=8)videoBatches.push(regular.slice(i,i+8));
