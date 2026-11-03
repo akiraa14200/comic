@@ -160,12 +160,16 @@ async function query<T>(queryText: string, variables: Record<string, unknown> = 
   finally { inFlightRequests.delete(key); }
 }
 
-export async function getVideoCatalogue(page = 1, genre?: string): Promise<Anime[]> {
+export async function getVideoCatalogue(page = 1, genre?: string, mediaType: 'ANIME' | 'MANGA' = 'ANIME'): Promise<Anime[]> {
   const data = await query<{ Page: { media: Anime[] } }>(
-    `query($page: Int, $genre: String) { Page(page: $page, perPage: 50) { media(type: ANIME, genre: $genre, sort: TRENDING_DESC, isAdult: false) { ${fields} } } }`,
-    { page, genre: genre || undefined }
+    `query($page: Int, $genre: String, $type: MediaType!) { Page(page: $page, perPage: 50) { media(type: $type, genre: $genre, sort: TRENDING_DESC, isAdult: false) { ${fields} } } }`,
+    { page, genre: genre || undefined, type: mediaType }
   );
   return data.Page?.media || [];
+}
+
+export async function getMangaVideoCatalogue(page = 1, genre?: string): Promise<Anime[]> {
+  return getVideoCatalogue(page, genre, 'MANGA');
 }
 
 export async function getTrending(): Promise<Anime[]> {
