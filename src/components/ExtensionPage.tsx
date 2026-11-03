@@ -118,7 +118,17 @@ export function ExtensionPage() {
     if (!safeHttps(base)) throw new Error('Repository must use a valid HTTPS URL.');
     const explicitPb = /\.pb$/i.test(raw.trim());
     const explicitJson = /\.json$/i.test(raw.trim());
-    const candidates = explicitPb ? [raw.trim(), base + '/index.min.json', base + '/index.json'] : explicitJson ? [raw.trim()] : [base + '/index.pb', base + '/index.min.json', base + '/index.json'];
+    // Keiyoushi's index.min.json is a legacy list containing obsolete "Outdated App"
+    // packages. Never silently fall back to it when the current protobuf index fails.
+    const isKeiyoushi = /(^|\.)keiyoushi\.github\.io$/i.test(new URL(base).hostname)
+      || /github\.com\/keiyoushi\/extensions/i.test(base);
+    const candidates = explicitPb
+      ? [raw.trim()]
+      : explicitJson
+        ? [raw.trim()]
+        : isKeiyoushi
+          ? [base + '/index.pb']
+          : [base + '/index.pb', base + '/index.json'];
     let lastError = 'Repository index not found.';
     for (const target of candidates) {
       try {
