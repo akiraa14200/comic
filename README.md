@@ -1,27 +1,50 @@
-# COMICKO
+# Kairo — Anime Discovery
 
-COMICKO is being developed as one Android application combining the supplied Velune music player and Yōkai manga reader.
+A responsive anime discovery interface inspired by modern streaming catalogues. This is a fresh web application replacing the previous repository contents.
 
-## Current status
+## Features
 
-- Source archives are committed at the repository root as `Velune-main.zip` and `yokai-master.zip`.
-- GitHub Actions extracts each archive and runs independent baseline build checks.
-- Latest baseline CI run passed: both independent APK builds completed successfully.
-- The baseline jobs are validation only. They do not yet constitute the merged COMICKO app.
+- Discover trending, popular and current-season anime.
+- Search AniList's public catalogue and filter by genre.
+- Anime detail pages with synopsis, genres, studio and metadata.
+- Browser-local watchlist and recently viewed history.
+- Responsive layouts for mobile and desktop.
+- Privacy information page; no advertising SDKs or analytics scripts are bundled.
+- Optional user-supplied external video URL handoff. The app does not host episodes or provide unauthorized streams.
 
-## Integration requirements
+## Stack
 
-- One installable Android app/APK branded COMICKO.
-- Preserve reader and music-player features and applicable license notices.
-- Music playback must continue while the reader is open.
-- Floating in-app music controls must connect to the actual playback service/session.
-- Unified glassmorphism UI.
-- GitHub Actions build and APK artifact publishing.
+- React + TypeScript
+- Vite
+- React Router
+- AniList public GraphQL API
+- Local storage for personal watchlist/history
 
-## Integration constraints found during source audit
+## Run locally
 
-The two source projects currently use different Android build configurations and dependency catalogs. Velune uses AGP 9.1.1/Kotlin 2.3.10, while Yōkai uses AGP 8.12.2/Kotlin 2.4.10 and custom Gradle convention plugins. They also each declare their own application module, manifest, resources, and launch activity. A real merge therefore requires deliberate Gradle/catalog reconciliation and manifest/resource integration; simply copying one app's source into the other would not produce a reliable single APK.
+```bash
+npm install
+npm run dev
+```
 
-The source-level audit is documented in [COMICKO-INTEGRATION-AUDIT.md](./COMICKO-INTEGRATION-AUDIT.md). It confirms the real Media3 playback service, manga reader entry point, and the application/Gradle conflicts that must be resolved.
+Production build:
 
-Do not treat the baseline APKs as the finished COMICKO app. The combined app is complete only after integration compiles and reader/music handoff is verified.
+```bash
+npm run typecheck
+npm run build
+npm run preview
+```
+
+## Data and privacy
+
+Anime metadata is requested directly from AniList's public GraphQL API. Watchlist and recently viewed metadata are stored in the current browser's local storage; there is no account backend or cross-device sync in this version.
+
+A normal website cannot reliably block ads or trackers inside cross-origin third-party video players. The privacy page describes this limitation accurately. For network-level filtering, users can configure a reputable browser content blocker or device-level DNS filtering. This app does not bypass DRM, authentication, subscriptions, paywalls or provider access controls.
+
+## Scope notes
+
+Authentication, cloud sync, server-side admin management, episode hosting and a provider-integrated player require trusted backend services and authorized content sources. They are intentionally not represented as implemented features in this frontend-first release.
+
+## Credits
+
+Anime metadata: [AniList](https://anilist.co/). Kairo is an independent project and is not affiliated with AniList or the reference website.
