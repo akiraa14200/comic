@@ -171,6 +171,58 @@ export async function getVideoCatalogue(page = 1, genre?: string, mediaType: 'AN
 export async function getMangaVideoCatalogue(page = 1, genre?: string): Promise<Anime[]> {
   return getVideoCatalogue(page, genre, 'MANGA');
 }
+export async function getTrendingManga(): Promise<Anime[]> {
+  const data = await query<{ Page: { media: Anime[] } }>(
+    `query { Page(perPage: 18) { media(type: MANGA, sort: TRENDING_DESC, isAdult: false) { ${fields} } } }`
+  );
+  return data.Page?.media || [];
+}
+
+export async function getPopularManga(): Promise<Anime[]> {
+  const data = await query<{ Page: { media: Anime[] } }>(
+    `query { Page(perPage: 18) { media(type: MANGA, sort: POPULARITY_DESC, isAdult: false) { ${fields} } } }`
+  );
+  return data.Page?.media || [];
+}
+
+export async function searchMedia(
+  search = '',
+  page = 1,
+  genre?: string,
+  status?: string,
+  format?: string,
+  mediaType?: 'ANIME' | 'MANGA'
+): Promise<Anime[]> {
+  const validFormats = ['TV','TV_SHORT','MOVIE','SPECIAL','OVA','ONA','MUSIC','MANGA','NOVEL','ONE_SHOT'];
+  const apiFormat = format && validFormats.includes(format) ? format : undefined;
+  const data = await query<{ Page: { media: Anime[] } }>(
+    `query($search: String, $page: Int, $genre: String, $status: MediaStatus, $format: MediaFormat, $type: MediaType) {
+      Page(page: $page, perPage: 50) {
+        media(type: $type, search: $search, genre: $genre, status: $status, format: $format, sort: SEARCH_MATCH, isAdult: false) { ${fields} }
+      }
+    }`,
+    {
+      search: search.trim() || undefined,
+      page,
+      genre: genre || undefined,
+      status: status || undefined,
+      format: apiFormat,
+      type: mediaType
+    }
+  );
+  return data.Page?.media || [];
+}
+
+export async function getAniListMediaById(id: number, mediaType: 'ANIME' | 'MANGA' = 'ANIME'): Promise<Anime | null> {
+  if (!Number.isInteger(id) || id <= 0) return null;
+  const data = await query<{ Media: Anime | null }>(
+    `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { ${detailFields} } }`,
+    { id, type: mediaType },
+    DETAIL_CACHE_TTL
+  );
+  return data.Media || null;
+}
+
 
 export async function getTrending(): Promise<Anime[]> {
   const data = await query<{ Page: { media: Anime[] } }>(`query { Page(perPage: 12) { media(type: ANIME, sort: TRENDING_DESC, isAdult: false) { ${fields} } } }`);
