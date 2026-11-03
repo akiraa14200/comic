@@ -189,7 +189,7 @@ async function processMediaBatch(admin: ReturnType<typeof createClient>, media: 
   });
   if (trailerRows.length) {
     const { error: trailerError } = await admin.from("related_videos")
-      .upsert(trailerRows, { onConflict: "video_url", ignoreDuplicates: true });
+      .upsert(trailerRows, { onConflict: "title_id,video_url", ignoreDuplicates: true });
     if (trailerError) throw trailerError;
     // Preserve custom title trailer URLs. The video catalogue can still contain an AniList trailer record.
   }
