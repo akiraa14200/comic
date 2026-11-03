@@ -217,13 +217,13 @@ export async function getAnime(id: number, type: 'ANIME' | 'MANGA' = 'ANIME'): P
   return data.Media || null;
 }
 
-export async function getAnimeCharacters(id: number, page: number): Promise<NonNullable<Anime['characters']>> {
+export async function getAnimeCharacters(id: number, page: number, type: 'ANIME' | 'MANGA' = 'ANIME'): Promise<NonNullable<Anime['characters']>> {
   const data = await query<{ Media: { characters: NonNullable<Anime['characters']> } | null }>(
-    `query($id: Int, $page: Int) { Media(id: $id, type: ANIME) { characters(page: $page, perPage: 50, sort: ROLE) {
+    `query($id: Int, $page: Int, $type: MediaType!) { Media(id: $id, type: $type) { characters(page: $page, perPage: 50, sort: ROLE) {
       pageInfo { currentPage hasNextPage }
       edges { role node { id name { full native alternative } image { large medium } description(asHtml: false) gender age dateOfBirth { year month day } siteUrl favourites } }
     } } }`,
-    { id, page },
+    { id, page, type },
     DETAIL_CACHE_TTL
   );
   return data.Media?.characters || { pageInfo: { currentPage: page, hasNextPage: false }, edges: [] };
