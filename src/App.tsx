@@ -77,10 +77,19 @@ function Home() {
   const [heroIndex, setHeroIndex] = useState(0);
   const featured = trending.slice(0, 5);
   const hero = featured[heroIndex] || trending[0];
+  useEffect(() => {
+    if (featured.length < 2) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        setHeroIndex(index => (index + 1) % featured.length);
+      }
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [featured.length]);
   return <main className="page-shell">
-    {hero && <section className="hero" style={{ backgroundImage: `linear-gradient(90deg, #08090d 3%, rgba(8,9,13,.94) 35%, rgba(8,9,13,.32) 100%), linear-gradient(0deg,#08090d 0%,transparent 55%), url(${hero.bannerImage || imageOf(hero)})` }}>
+    {hero && <section className="hero" aria-label="Featured anime carousel">
+      <img className="hero-banner-image" src={hero.bannerImage || imageOf(hero)} alt="" fetchPriority="high" decoding="async"/>
       <div className="hero-copy"><span className="eyebrow"><Sparkles size={14}/> YOUR NEXT FAVORITE STARTS HERE</span><h1>Find your next<br/><em>anime obsession.</em></h1><p>Explore stories worth getting lost in. Discover trending series, seasonal gems and timeless favorites.</p><div className="hero-actions"><Link className="primary-btn" to={hero ? `/anime/${hero.id}` : '/search'}><Play size={16} fill="currentColor"/> Explore featured</Link><Link className="secondary-btn" to="/search">Browse library <ChevronRight size={16}/></Link></div><div className="hero-featured">{hero && <><span>FEATURED PICK · {heroIndex + 1}/5</span><strong>{titleOf(hero)}</strong></>}</div><div className="hero-carousel-controls"><button aria-label="Previous featured anime" onClick={() => setHeroIndex(i => (i + 4) % Math.max(1, featured.length))}><ChevronLeft size={16}/></button>{featured.map((item,index)=><button key={item.id} aria-label={`Show ${titleOf(item)}`} className={index===heroIndex?"active":""} onClick={()=>setHeroIndex(index)} />)}<button aria-label="Next featured anime" onClick={() => setHeroIndex(i => (i + 1) % Math.max(1, featured.length))}><ChevronRight size={16}/></button></div></div>
-      <div className="hero-art">{hero && <img src={imageOf(hero)} alt={titleOf(hero)}/>}</div>
     </section>}
     {!hero && <div className="hero hero-loading"><div className="hero-copy"><span className="eyebrow">RYKOCCLLECTION ANIME DISCOVERY</span><h1>Stories that stay<br/><em>with you.</em></h1><p>Find your next anime, one discovery at a time.</p><Link className="primary-btn" to="/search">Explore anime <ChevronRight size={16}/></Link></div></div>}
     {error && <div className="notice"><strong>Catalogue unavailable.</strong> {error} Check your connection and try again.</div>}
