@@ -247,3 +247,8 @@
  .video-search-tools select{max-width:none;flex:1}
  .account-card{padding:18px;gap:13px}
 }
+
+/* The bottom bar is the primary app navigation on every screen size. */
+.nav-links,.nav-search,.mobile-menu{display:none!important}
+body{padding-bottom:104px}
+@media(max-width:700px){body{padding-bottom:88px}}
