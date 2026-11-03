@@ -319,17 +319,17 @@ function videoEmbedUrl(video: RelatedVideo) {
   try {
     const url = new URL(video.videoUrl);
     if (video.platform === 'youtube') {
-      const host = url.hostname.replace(/^www\\./, '').toLowerCase();
+      const host = url.hostname.replace(/^www\./, '').toLowerCase();
       let id = host === 'youtu.be' ? url.pathname.split('/').filter(Boolean)[0] : url.searchParams.get('v');
-      if (!id && /youtube(-nocookie)?\\.com$/.test(host)) id = url.pathname.split('/').filter(Boolean).slice(-1)[0];
+      if (!id && /youtube(-nocookie)?\.com$/.test(host)) id = url.pathname.split('/').filter(Boolean).slice(-1)[0];
       return id ? `https://www.youtube-nocookie.com/embed/${id}?rel=0&playsinline=1` : '';
     }
     if (video.platform === 'dailymotion') {
-      const match = url.pathname.match(/(?:video\\/)?([a-zA-Z0-9]+)/);
+      const match = url.pathname.match(/(?:video\/)?([a-zA-Z0-9]+)/);
       return match?.[1] ? `https://www.dailymotion.com/embed/video/${match[1]}` : '';
     }
     if (video.platform === 'instagram') {
-      const clean = video.videoUrl.split('?')[0].replace(/\\/$/, '');
+      const clean = video.videoUrl.split('?')[0].replace(/\/$/, '');
       return clean + '/embed';
     }
   } catch { return ''; }
