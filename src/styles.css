@@ -430,3 +430,60 @@ body{padding-bottom:104px}
 .compare-row>span{color:#d7d4e1;border-left:1px solid #ffffff0d}
 @media(max-width:850px){.smart-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.library-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.smart-discovery{padding-top:34px}.smart-filter-grid{grid-template-columns:1fr 1fr}.smart-filter-grid .genre-select{padding:0 9px;gap:5px}.smart-filter-grid .genre-select span{font-size:9px}.smart-filter-grid .genre-select select{font-size:10px}.smart-search-row{flex-direction:column}.smart-search-row .secondary-btn{width:100%}.library-stat-grid{gap:8px}.library-stat-grid>div{padding:13px}.release-row{gap:8px}.release-row img{width:36px;height:48px}.release-row time{font-size:9px}.compare-modal{padding:20px 13px}.compare-row{grid-template-columns:95px repeat(3,minmax(0,1fr))}.compare-row>*{padding:8px 6px;font-size:9px}.compare-posters img{height:110px}}
+
+
+.quick-menu-wrap{position:relative;flex:none;margin-left:auto}
+.quick-menu-trigger{width:40px;height:40px;border-radius:12px;color:#d7d2ef}
+.quick-menu-dismiss{position:fixed;inset:0;z-index:29;border:0;background:transparent;cursor:default}
+.quick-menu-panel{position:absolute;right:0;top:calc(100% + 12px);z-index:30;width:210px;padding:8px;border:1px solid #ffffff1c;border-radius:15px;background:rgba(18,19,29,.97);backdrop-filter:blur(22px);box-shadow:0 18px 55px #0009;animation:quickMenuIn .16s ease-out}
+@keyframes quickMenuIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+.quick-menu-heading{padding:9px 10px 11px;color:#77748c;font-size:9px;font-weight:800;letter-spacing:.16em;border-bottom:1px solid #ffffff10;margin-bottom:5px}
+.quick-menu-panel a{display:flex;align-items:center;gap:11px;padding:11px 10px;border-radius:9px;color:#e5e2f1;font-size:12px}
+.quick-menu-panel a:hover{background:#ffffff0b;color:#bdb2ff}
+.quick-menu-panel a svg:last-child{margin-left:auto;color:#77748c}
+.settings-page{max-width:920px}
+.settings-group{margin:22px 0;padding:21px;border:1px solid var(--line);border-radius:17px;background:linear-gradient(145deg,#141620,#0f1118)}
+.settings-group-heading{display:flex;align-items:center;gap:12px;padding-bottom:17px;border-bottom:1px solid #ffffff10}
+.settings-group-heading>svg{width:21px;height:21px;color:#aaa0ff}
+.settings-group-heading h2{font:700 16px Manrope;margin:0}
+.settings-group-heading p{font-size:11px;color:#858493;margin:5px 0 0}
+.settings-row{display:flex;align-items:center;gap:13px;padding:15px 0;border-bottom:1px solid #ffffff0b}
+.settings-row:last-child{border-bottom:0;padding-bottom:0}
+.settings-row-icon{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:10px;background:#a99bff12;color:#b7aaff}
+.settings-row-icon svg{width:17px;height:17px}
+.settings-row-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:5px}
+.settings-row-copy strong{font-size:12px;color:#eeedf5}
+.settings-row-copy small{font-size:10px;color:#898797;line-height:1.5}
+.settings-row select{max-width:130px;border:1px solid #ffffff1b;border-radius:9px;padding:8px 10px;background:#1a1c27;color:#eee;font-size:11px}
+.settings-switch{width:43px;height:25px;flex:none;padding:3px;border:1px solid #ffffff20;border-radius:20px;background:#343540;transition:.2s}
+.settings-switch span{display:block;width:17px;height:17px;border-radius:50%;background:#aaa;transition:.2s}
+.settings-switch.active{background:#8171e8;border-color:#a99bff}
+.settings-switch.active span{transform:translateX(17px);background:#fff}
+.settings-action{flex:none;border:1px solid #ffffff1a;border-radius:9px;background:#ffffff08;color:#c5bcff;padding:8px 11px;font-size:10px}
+.settings-action:hover{background:#9b8cff20}
+.settings-footer{display:flex;align-items:center;gap:15px;flex-wrap:wrap;margin:20px 0}
+.settings-message{font-size:11px;color:#bcb2ff}
+.about-page{max-width:900px}
+.about-hero{text-align:center;padding:45px 20px 55px;border:1px solid #a99bff24;border-radius:22px;background:radial-gradient(ellipse at 50% 0%,#9b8cff22,transparent 65%),#10121a}
+.about-brand-mark{width:66px;height:66px;display:grid;place-items:center;margin:0 auto 22px;border-radius:21px;background:linear-gradient(135deg,#c0b5ff,#7869dc);color:#151321;font:800 36px Manrope;box-shadow:0 12px 45px #8b7cff40}
+.about-hero .eyebrow{justify-content:center}
+.about-hero h1{font:800 clamp(30px,6vw,48px) Manrope;letter-spacing:-.055em;margin:18px 0 8px}
+.about-hero h1 em{font-style:normal;color:#a99bff}
+.about-hero>p{font-size:14px;color:#c4c0d2}
+.about-version{display:inline-block;margin-top:12px;padding:6px 10px;border:1px solid #ffffff16;border-radius:20px;color:#89869b;font-size:9px}
+.about-card{margin:18px 0;padding:23px;border:1px solid var(--line);border-radius:17px;background:#11131a}
+.about-card h2{font:700 19px Manrope;margin:10px 0}
+.about-card>p{color:#a5a3b1;font-size:12px;line-height:1.8}
+.credit-row{display:flex;gap:14px;padding:17px 0;border-bottom:1px solid #ffffff0d}
+.credit-row:last-child{border-bottom:0;padding-bottom:0}
+.credit-icon{width:38px;height:38px;flex:none;display:grid;place-items:center;border-radius:11px;background:#a99bff12;color:#b5aaff}
+.credit-icon svg{width:19px;height:19px}
+.credit-row strong{font-size:13px}
+.credit-row p{margin:5px 0 8px;color:#9996a6;font-size:11px;line-height:1.7}
+.credit-row a{display:inline-flex;align-items:center;gap:4px;margin:3px 13px 0 0;color:#b7aaff;font-size:10px}
+.about-disclaimer{background:#0e1017}
+.about-footer{text-align:center;color:#777486;font-size:10px;letter-spacing:.1em;padding:15px 0 0}
+html.hide-scores .poster-score{display:none!important}
+html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+@media(max-width:760px){.quick-menu-wrap{order:5;margin-left:auto}.quick-menu-panel{right:0}.nav-wrap{gap:12px}.nav-search{display:none}}
+@media(max-width:520px){.settings-group{padding:16px 13px}.settings-row{gap:9px}.settings-row-icon{width:30px;height:30px}.settings-row-copy strong{font-size:11px}.settings-row-copy small{font-size:9px}.settings-row select{max-width:105px;font-size:10px}.settings-action{padding:7px 8px}.about-hero{padding:35px 12px}.about-card{padding:18px}}
