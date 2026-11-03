@@ -362,3 +362,17 @@ body{padding-bottom:104px}
 .character-detail-group .character-bio p{margin:0 0 12px}
 .character-detail-group .character-bio p:last-child{margin-bottom:0}
 @media(max-width:520px){.character-detail-group{padding:12px}.character-detail-group .character-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Personal library backup controls */
+.backup-panel{margin:22px 0 28px;padding:20px;border:1px solid #ffffff18;border-radius:15px;background:linear-gradient(135deg,#ffffff0a,#ffffff03)}
+.backup-panel-heading{display:flex;align-items:center;gap:14px}
+.backup-panel-heading h2{margin:4px 0;font-size:19px;color:#f1edf9}
+.backup-panel-heading p{margin:0;color:#a7a2b2;font-size:12px;line-height:1.6}
+.backup-panel .privacy-icon{flex:none}
+.backup-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.backup-actions .primary-btn,.backup-import{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:10px 15px;cursor:pointer}
+.backup-import{position:relative;overflow:hidden}
+.backup-import input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.backup-message{margin:13px 0 0;padding:10px 12px;border-radius:9px;background:#ffffff0a;color:#d9d2ef;font-size:12px;line-height:1.5}
+.backup-panel .fine-print{margin-top:15px}
+@media(max-width:480px){.backup-panel{padding:15px}.backup-panel-heading{align-items:flex-start}.backup-actions>*{flex:1 1 100%}}
