@@ -1,4 +1,4 @@
-# Kairo — Anime Discovery
+# RykocCllection — Anime Discovery
 
 A responsive anime discovery interface inspired by modern streaming catalogues. This is a fresh web application replacing the previous repository contents.
 
@@ -46,17 +46,17 @@ Authentication, cloud sync, server-side admin management, episode hosting and a 
 
 ## Credits
 
-Anime metadata: [AniList](https://anilist.co/). Kairo is an independent project and is not affiliated with AniList or the reference website.
+Anime metadata: [AniList](https://anilist.co/). RykocCllection is an independent project and is not affiliated with AniList or the reference website.
 
 ## Android APK
 
-Kairo is packaged for Android with Capacitor. Every push to `main` that changes the app source or Android packaging configuration starts the **Build Android APK** workflow. You can also start it manually from the repository's Actions tab.
+RykocCllection is packaged for Android with Capacitor. Every push to `main` that changes the app source or Android packaging configuration starts the **Build Android APK** workflow. You can also start it manually from the repository's Actions tab.
 
 When the workflow succeeds:
 
 1. Open the repository's **Actions** tab.
 2. Select the latest **Build Android APK** run.
-3. Under **Artifacts**, download `Kairo-Android-debug-APK`.
+3. Under **Artifacts**, download `RykocCllection-Android-debug-APK`.
 4. Extract the ZIP and install `app-debug.apk` on your Android device.
 
 This is a debug APK for testing and personal installation, not a Play Store-signed release. The APK artifact is retained by GitHub Actions for 14 days. Android project files are generated during CI, so the repository remains focused on the web source and build configuration.
