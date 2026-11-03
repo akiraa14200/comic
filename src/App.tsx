@@ -124,7 +124,7 @@ function SearchPage() {
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState('');
   const { saved, toggle } = useLibrary();
-  useEffect(() => { setTerm(params.get('q') || ''); }, [location.search]);
+  useEffect(() => { setTerm(params.get('q') || ''); setFormat(params.get('format') || ''); }, [location.search]);
   useEffect(() => {
     let active = true;
     const timer = window.setTimeout(() => {
@@ -398,7 +398,7 @@ function detectVideoFormat(url:string) {
   } catch { return 'video'; }
 }
 function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo; short: boolean; playing: boolean; onPlay: () => void }) {
-  const cardRef = useRef<HTMLElement | null>(null);
+  const cardRef = useRef<HTMLElementTagNameMap['article'] | null>(null);
   const [nearViewport, setNearViewport] = useState(false);
   useEffect(() => {
     const node = cardRef.current;
