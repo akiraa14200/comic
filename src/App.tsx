@@ -364,7 +364,7 @@ function videoThumbnail(video: RelatedVideo) {
 function isShortVideo(video: RelatedVideo) {
   try {
     const url = new URL(video.videoUrl);
-    return /\\/(shorts|reel|reels)\\//i.test(url.pathname);
+    return /\/(shorts|reel|reels)\//i.test(url.pathname);
   } catch { return false; }
 }
 function VideoPage() {
