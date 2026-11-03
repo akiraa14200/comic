@@ -98,6 +98,8 @@ function SearchPage() {
   const params = new URLSearchParams(location.search);
   const [term, setTerm] = useState(params.get('q') || '');
   const [genre, setGenre] = useState('');
+  const [status, setStatus] = useState('');
+  const [format, setFormat] = useState('');
   const [items, setItems] = useState<Anime[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -107,15 +109,15 @@ function SearchPage() {
     let active = true;
     const timer = window.setTimeout(() => {
       setBusy(true); setError('');
-      searchAnime(term.trim(), 1, genre || undefined).then(data => { if (active) setItems(data); })
+      searchAnime(term.trim(), 1, genre || undefined, status || undefined, format || undefined).then(data => { if (active) setItems(data); })
         .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Search failed.'); })
         .finally(() => { if (active) setBusy(false); });
     }, 350);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [term, genre]);
+  }, [term, genre, status, format]);
   const genres = ['Action','Adventure','Comedy','Drama','Fantasy','Horror','Mystery','Romance','Sci-Fi','Slice of Life','Sports','Supernatural'];
   return <main className="content-page"><div className="page-heading"><span className="eyebrow">THE ANIME CATALOGUE</span><h1>Explore <em>anime.</em></h1><p>Search for a favorite or let a new story find you.</p></div>
-    <div className="filter-bar"><div className="large-search"><Search/><input value={term} onChange={e => setTerm(e.target.value)} placeholder="Search titles, series, stories..." autoFocus/></div><label className="genre-select"><SlidersHorizontal size={16}/><select value={genre} onChange={e => setGenre(e.target.value)}><option value="">All genres</option>{genres.map(g => <option key={g}>{g}</option>)}</select></label></div>
+    <div className="filter-bar"><div className="large-search"><Search/><input value={term} onChange={e => setTerm(e.target.value)} placeholder="Search titles, series, stories..." autoFocus/></div><label className="genre-select"><SlidersHorizontal size={16}/><select value={genre} onChange={e => setGenre(e.target.value)}><option value="">All genres</option>{genres.map(g => <option key={g}>{g}</option>)}</select></label><label className="genre-select"><select value={status} onChange={e=>setStatus(e.target.value)}><option value="">Any status</option><option value="RELEASING">Airing</option><option value="FINISHED">Finished</option><option value="NOT_YET_RELEASED">Upcoming</option><option value="HIATUS">Hiatus</option></select></label><label className="genre-select"><select value={format} onChange={e=>setFormat(e.target.value)}><option value="">Any format</option><option value="TV">TV</option><option value="TV_SHORT">TV Short</option><option value="MOVIE">Movie</option><option value="OVA">OVA</option><option value="ONA">ONA</option><option value="SPECIAL">Special</option></select></label></div>
     <div className="results-caption">{busy ? 'Searching catalogue…' : `${items.length} results shown`}{term && <span> for “{term}”</span>}</div>
     {error && <div className="notice">{error}</div>}
     {busy && !items.length ? <div className="anime-grid">{Array.from({length:8},(_,i)=><div className="skeleton-card" key={i}><div className="skeleton-poster"/><div className="skeleton-line"/></div>)}</div> :
