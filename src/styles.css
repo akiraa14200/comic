@@ -55,7 +55,7 @@
 .anime-comment-composer{display:flex;gap:13px;padding:16px;border:1px solid #ffffff17;border-radius:14px;background:#090b11}
 .composer-avatar,.comment-avatar{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:50%;background:linear-gradient(135deg,#b9aaff,#7668d8);color:#12101d;font-weight:800;font-size:12px}
 .composer-main{flex:1;min-width:0}
-.composer-main textarea,.anime-reply-form textarea,.anime-comment-edit textarea{width:100%;min-height:88px;resize:vertical;background:#ffffff06;border:1px solid #ffffff13;border-radius:10px;padding:12px;color:#f4f2ff;font:12px/1.65 inherit;outline:none}
+.composer-main textarea,.anime-reply-form textarea,.anime-comment-edit textarea{width:100%;min-height:88px;resize:vertical;background:#ffffff06;border:1px solid #ffffff13;border-radius:10px;padding:12px;color:#f4f2ff;font:inherit;font-size:12px;line-height:1.65;outline:none}
 .composer-main textarea:focus,.anime-reply-form textarea:focus,.anime-comment-edit textarea:focus{border-color:#9f91ff88}
 .composer-controls{display:flex;align-items:center;gap:12px;margin-top:10px}
 .composer-controls>span{margin-left:auto;color:#777;font-size:10px}
