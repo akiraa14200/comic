@@ -84,7 +84,7 @@ function Home({ mode }: { mode: CatalogueMode }) {
   const featured = trending.slice(0, 5);
   const hero = featured[heroIndex] || trending[0];
   useEffect(() => {
-    if (featured.length < 2) return;
+    if (featured.length < 2 || readStore('rykoc-auto-carousel', true) === false) return;
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         setHeroIndex(index => (index + 1) % featured.length);
