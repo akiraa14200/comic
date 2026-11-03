@@ -383,6 +383,7 @@ function VideoPage() {
       <div><span className="eyebrow">RYKOCCLLECTION VIDEO</span><h1>Anime <em>trailers.</em></h1><p>Discover anime promotional videos from across the catalogue.</p></div>
       {selected?.siteUrl && <a className="secondary-btn" href={selected.siteUrl} target="_blank" rel="noopener noreferrer">Anime details <ExternalLink size={14}/></a>}
     </div>
+    {videoTerm.trim() && <div className="video-external-search"><span>Want more results?</span><a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(videoTerm.trim()+ " anime trailer")}`} target="_blank" rel="noopener noreferrer">Search YouTube for “{videoTerm.trim()}” <ExternalLink size={13}/></a></div>}
     <div className="video-search-tools"><label className="large-search"><Search/><input value={videoTerm} onChange={event=>setVideoTerm(event.target.value)} placeholder="Search anime to find related videos..." autoComplete="off"/></label><label className="genre-select"><SlidersHorizontal size={16}/><select value={videoGenre} onChange={event=>setVideoGenre(event.target.value)}><option value="">All genres</option>{videoGenres.map(value=><option key={value}>{value}</option>)}</select></label></div>
     {error && <div className="notice">{error}</div>}
     {loading || videoSearching ? <div className="video-loading">Discovering trailers…</div> : selected && trailerId ? <section className="video-feature">
