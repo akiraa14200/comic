@@ -14,6 +14,7 @@ export type Anime = {
   duration?: number;
   siteUrl?: string;
   nextAiringEpisode?: { episode: number; airingAt: number };
+  trailer?: { id: string; site: string };
 };
 
 const endpoint = 'https://graphql.anilist.co';
@@ -23,6 +24,7 @@ const fields = `
   status seasonYear format genres duration siteUrl
   studios(isMain: true) { nodes { name } }
   nextAiringEpisode { episode airingAt }
+  trailer { id site }
 `;
 
 async function query<T>(queryText: string, variables: Record<string, unknown> = {}): Promise<T> {
