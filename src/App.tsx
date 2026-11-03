@@ -499,7 +499,8 @@ function PrivacyPage() {
 }
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);\n  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
