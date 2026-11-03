@@ -517,3 +517,73 @@ body{padding-bottom:104px}
 }
 
 .yt-feed-batch{display:contents}
+
+
+/* Character profiles: structured, readable metadata without changing the Ryko visual language. */
+.character-profile-modal{width:min(100%,680px);padding:clamp(18px,3vw,28px);scrollbar-width:thin;scrollbar-color:#454153 transparent}
+.character-profile-header{align-items:center;gap:20px;padding:4px 42px 20px 0;border-bottom:1px solid #ffffff14}
+.character-profile-header>img{width:116px;height:148px;flex:0 0 116px;border-radius:13px;object-fit:cover;background:#20222d}
+.character-profile-heading{min-width:0}
+.character-profile-heading h2{overflow-wrap:anywhere}
+.character-native-name{margin:0 0 10px;color:#a7a2b4;font-size:12px}
+.character-aliases{margin:12px 0 0!important;color:#858291!important;font-size:10px!important;line-height:1.55}
+.character-profile-section{margin-top:20px}
+.character-profile-section-title{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+.character-profile-section-title>span{display:grid;place-items:center;width:25px;height:25px;border:1px solid #a99bff38;border-radius:7px;background:#a99bff12;color:#c1b5ff;font-size:9px;font-weight:800}
+.character-profile-section-title h3{margin:0;color:#eeeaf5;font:700 13px Manrope,sans-serif}
+.character-facts-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:0;padding:0;border:0}
+.character-facts-grid>span{min-width:0;min-height:64px;padding:11px;border:1px solid #ffffff12;border-radius:10px;background:#ffffff06;overflow-wrap:anywhere}
+.character-facts-grid>span strong{font-size:9px;letter-spacing:.04em;text-transform:uppercase}
+.character-facts-grid>span:not(strong){font-size:11px}
+.character-profile-section .character-bio{padding:14px;border:1px solid #ffffff12;border-radius:11px;background:#ffffff05;font-size:12px;line-height:1.8}
+.character-source-link{margin-top:19px;width:max-content}
+@media(max-width:560px){
+ .character-modal-backdrop{padding:10px}
+ .character-profile-modal{max-height:90dvh;padding:17px;border-radius:15px}
+ .character-profile-header{align-items:flex-start;gap:13px;padding-right:27px}
+ .character-profile-header>img{width:88px;height:116px;flex-basis:88px}
+ .character-profile-heading h2{font-size:18px}
+ .character-aliases{font-size:9px!important}
+ .character-facts-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* Media-heavy lists stay responsive: the browser can skip off-screen layout/paint work. */
+.yt-section,.yt-video-card,.video-trailer-card,.anime-card{
+ content-visibility:auto;
+ contain-intrinsic-size:auto 340px;
+}
+.yt-thumbnail{contain:layout paint;isolation:isolate}
+.yt-thumbnail-button img,.yt-channel-avatar,.video-trailer-card img,.anime-card img{
+ backface-visibility:hidden;
+}
+.yt-thumbnail-button img,.yt-channel-avatar{image-rendering:auto}
+.yt-thumbnail-button img{aspect-ratio:16/9}
+.yt-short-card .yt-thumbnail-button img{aspect-ratio:9/16}
+.yt-video-card{min-height:0}
+.yt-video-card iframe{width:100%;height:100%;display:block;border:0}
+.yt-loading-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px 18px;padding-top:18px}
+.yt-skeleton-card{min-width:0}
+.yt-skeleton-thumb,.yt-skeleton-line,.yt-skeleton-avatar{
+ position:relative;overflow:hidden;background:#1a1a21;
+}
+.yt-skeleton-thumb{width:100%;aspect-ratio:16/9;border-radius:13px}
+.yt-skeleton-meta{display:flex;align-items:center;gap:11px;padding:12px 2px}
+.yt-skeleton-avatar{width:37px;height:37px;flex:0 0 37px;border-radius:50%}
+.yt-skeleton-copy{flex:1;display:grid;gap:8px}
+.yt-skeleton-line{height:9px;border-radius:8px}
+.yt-skeleton-line:first-child{width:78%}
+.yt-skeleton-line:last-child{width:48%}
+.yt-skeleton-thumb:after,.yt-skeleton-line:after,.yt-skeleton-avatar:after{
+ content:"";position:absolute;inset:0;transform:translateX(-100%);
+ background:linear-gradient(90deg,transparent,#ffffff0b,transparent);
+ animation:ryko-shimmer 1.35s ease-in-out infinite;
+}
+@keyframes ryko-shimmer{to{transform:translateX(100%)}}
+@media(max-width:700px){
+ .yt-loading-grid{grid-template-columns:1fr;gap:20px}
+ .yt-skeleton-thumb{border-radius:0}
+ .yt-skeleton-meta{padding:10px 4%}
+}
+@media(prefers-reduced-motion:reduce){
+ .yt-skeleton-thumb:after,.yt-skeleton-line:after,.yt-skeleton-avatar:after{animation:none}
+}
