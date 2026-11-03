@@ -269,8 +269,6 @@ export async function getVideoCatalogue(page = 1, genre?: string): Promise<Anime
   return fetchTitles(request);
 }
 export async function searchAnime(search: string, page = 1, genre?: string, status?: string, format?: string): Promise<Anime[]> {
-  const animeFormats = ['TV','TV_SHORT','MOVIE','SPECIAL','OVA','ONA','MUSIC'];
-  const mangaFormats = ['MANGA','NOVEL','ONE_SHOT'];
   const mediaType: 'ANIME' | 'MANGA' | undefined =
     ['Manga','Manhwa','Manhua','Light Novel','Web Novel'].includes(format || '') ? 'MANGA' :
     ['Anime','Movie','TV Series'].includes(format || '') ? 'ANIME' : undefined;
