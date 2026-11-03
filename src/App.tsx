@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles, Tv } from 'lucide-react';
 // The application UI and page components are defined below.
 import { Anime, cleanDescription, getAnime, getPopular, getSeasonal, getTrending, imageOf, searchAnime, titleOf } from './lib/anilist';
 
@@ -19,7 +19,7 @@ function Header() {
   return <header className="topbar"><div className="nav-wrap">
     <Link to="/" className="brand"><span className="brand-mark">K</span><span>KAIRO</span></Link>
     <nav className={open ? 'nav-links open' : 'nav-links'}>
-      <Link to="/"><Compass size={16}/> Discover</Link><Link to="/search">Explore</Link><Link to="/watchlist"><Bookmark size={16}/> My list</Link><Link to="/privacy"><ShieldCheck size={16}/> Privacy</Link>
+      <Link to="/"><Compass size={16}/> Discover</Link><Link to="/search">Explore</Link><Link to="/watchlist"><Bookmark size={16}/> My list</Link><Link to="/video"><Tv size={16}/> Video</Link><Link to="/privacy"><ShieldCheck size={16}/> Privacy</Link>
     </nav>
     <form className="nav-search" onSubmit={submit}><Search size={17}/><input value={term} onChange={e => setTerm(e.target.value)} placeholder="Search anime..." aria-label="Search anime"/><kbd>↵</kbd></form>
     <button className="icon-btn mobile-menu" onClick={() => setOpen(!open)} aria-label="Toggle menu">{open ? <X/> : <Menu/>}</button>
@@ -147,6 +147,18 @@ function WatchlistPage() {
   return <main className="content-page"><div className="page-heading"><span className="eyebrow">YOUR PERSONAL COLLECTION</span><h1>My <em>watchlist.</em></h1><p>Keep the stories you want to come back to close.</p></div>{saved.length ? <div className="anime-grid">{saved.map(a=><AnimeCard key={a.id} anime={a} saved onSave={toggle}/>)}</div> : <div className="empty-state"><Bookmark size={28}/><h3>Your list is waiting</h3><p>Save anime from the catalogue and they will appear here.</p><Link className="primary-btn" to="/search">Discover anime</Link></div>}</main>;
 }
 
+function VideoPage() {
+  const [reloadKey, setReloadKey] = useState(0);
+  return <main className="video-page">
+    <div className="video-toolbar">
+      <div><span className="eyebrow">KAIRO VIDEO</span><h1>Watch <em>anime.</em></h1><p>Anikototv opens here inside Kairo's in-app web view.</p></div>
+      <div className="video-actions"><button className="secondary-btn" onClick={() => setReloadKey(v => v + 1)}>Reload</button><a className="primary-btn" href="https://anikototv.to/home" target="_blank" rel="noopener noreferrer">Open in browser <ExternalLink size={14}/></a></div>
+    </div>
+    <div className="video-frame-wrap"><iframe key={reloadKey} src="https://anikototv.to/home" title="Anikototv video website" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/></div>
+    <p className="fine-print">This tab displays the external website. Its playback, sign-in, cookies, advertisements and availability are controlled by Anikototv. If the provider blocks embedding, use “Open in browser”. Kairo does not host or modify its content.</p>
+  </main>;
+}
+
 function PrivacyPage() {
   const [protection, setProtection] = useState(()=>readStore('kairo-privacy', true));
   useEffect(()=>localStorage.setItem('kairo-privacy', JSON.stringify(protection)),[protection]);
@@ -158,5 +170,5 @@ function PrivacyPage() {
 }
 
 export default function App() {
-  return <><Header/><Routes><Route path="/" element={<Home/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/anime/:id" element={<DetailPage/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>KAIRO</span></Link><p>Discover stories. Find your next world.</p><span>Anime metadata via AniList · Independent fan discovery project</span></footer></>;
+  return <><Header/><Routes><Route path="/" element={<Home/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/anime/:id" element={<DetailPage/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>KAIRO</span></Link><p>Discover stories. Find your next world.</p><span>Anime metadata via AniList · Independent fan discovery project</span></footer></>;
 }
