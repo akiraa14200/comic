@@ -418,14 +418,14 @@ function VideoPage() {
       <div className="yt-thumbnail">
         {playing&&embed?<iframe key={video.id} src={embed} title={video.videoTitle||video.titleName||'Ryko video'} loading="eager" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/>:
         <button className="yt-thumbnail-button" onClick={()=>setPlayingId(playing?null:video.id)} aria-label={playing?'Close player':'Play video'}>
-          {thumbnail?<img src={thumbnail} alt={video.videoTitle||video.titleName||'Video thumbnail'} loading="lazy" onError={e=>{e.currentTarget.onerror=null;e.currentTarget.src=video.titleCover||'/placeholder-poster.svg';}}/>:<span className="yt-thumbnail-fallback"/>}
+          {thumbnail?<img src={thumbnail} alt={video.videoTitle||video.titleName||'Video thumbnail'} loading="lazy" decoding="async" onError={e=>{e.currentTarget.onerror=null;e.currentTarget.src=video.titleCover||'/placeholder-poster.svg';}}/>:<span className="yt-thumbnail-fallback"/>}
           <span className="yt-play-overlay"><Play size={short?24:30} fill="currentColor"/></span>
           {short&&<span className="yt-shorts-label">SHORTS</span>}
         </button>}
         {playing&&!embed&&<div className="yt-unavailable">This video cannot play in an embedded player. <a href={video.videoUrl} target="_blank" rel="noopener noreferrer">Open original <ExternalLink size={12}/></a></div>}
       </div>
       <div className="yt-video-info">
-        {video.creatorAvatarUrl?<img className="yt-channel-avatar" src={video.creatorAvatarUrl} alt="" loading="lazy"/>:<span className="yt-channel-avatar yt-avatar-fallback">{(video.creatorName||video.titleName||'R').slice(0,1).toUpperCase()}</span>}
+        {video.creatorAvatarUrl?<img className="yt-channel-avatar" src={video.creatorAvatarUrl} alt="" loading="lazy" decoding="async"/>:<span className="yt-channel-avatar yt-avatar-fallback">{(video.creatorName||video.titleName||'R').slice(0,1).toUpperCase()}</span>}
         <div className="yt-video-text"><h3>{(video.videoTitle||video.titleName||'Related video').length>50?(video.videoTitle||video.titleName||'Related video').slice(0,47).trimEnd()+'…':video.videoTitle||video.titleName||'Related video'}</h3><p>{video.creatorName||'Ryko Collection'}</p><p>{video.titleName||'Ryko video catalogue'}</p>{video.actionUrl&&<a className="yt-related" href={video.actionUrl} target="_blank" rel="noopener noreferrer">{video.actionType==='read'?'View title':'Related link'} <ExternalLink size={11}/></a>}</div>
         <button className="yt-more" onClick={()=>setPlayingId(playing?null:video.id)} aria-label={playing?'Close player':'Play video'}>{playing?<X size={20}/>:<span>•••</span>}</button>
       </div>
@@ -440,7 +440,7 @@ function VideoPage() {
       <nav className="yt-filter-bar" aria-label="Video format">{([{id:'all',label:'All'},{id:'video',label:'Videos'},{id:'short',label:'Shorts'}] as const).map(x=><button key={x.id} className={format===x.id?'active':''} onClick={()=>setFormat(x.id)}>{x.label}</button>)}</nav>
       <nav className="yt-category-bar" aria-label="Filter by title category">{['All','Anime','Manga','Manhwa','Manhua','Movie','TV Series'].map(x=><button key={x} className={category===x?'active':''} onClick={()=>setCategory(x)}>{x}</button>)}</nav>
       {error&&<div className="notice">{error}</div>}
-      {loading?<div className="video-loading">Loading your Ryko video library…</div>:filtered.length?Array.from({length:total},(_,i)=><div className="yt-feed-batch" key={i}>
+      {loading?<div className="yt-loading-grid" aria-label="Loading videos">{Array.from({length:4},(_,i)=><div className="yt-skeleton-card" key={i}><div className="yt-skeleton-thumb"/><div className="yt-skeleton-meta"><div className="yt-skeleton-avatar"/><div className="yt-skeleton-copy"><span className="yt-skeleton-line"/><span className="yt-skeleton-line"/></div></div></div>)}</div>:filtered.length?Array.from({length:total},(_,i)=><div className="yt-feed-batch" key={i}>
         {shortBatches[i]?.length>0&&<section className="yt-section yt-shorts-section"><div className="yt-section-heading"><div><h2><span className="yt-shorts-symbol">▰</span> Shorts</h2><p>Quick clips from your collection</p></div><span>{shortBatches[i].length} shorts</span></div><div className="yt-shorts-row">{shortBatches[i].map(v=>card(v,true))}</div></section>}
         {videoBatches[i]?.length>0&&<section className="yt-section"><div className="yt-section-heading"><div><h2>Videos</h2><p>Trailers, edits and full-length videos</p></div><span>{videoBatches[i].length} videos</span></div><div className="yt-video-feed">{videoBatches[i].map(v=>card(v,false))}</div></section>}
       </div>):<div className="yt-empty"><Play size={28}/><h3>{term||category!=='All'?'No matching videos':'No videos yet'}</h3><p>Try changing your search or filters.</p><button className="secondary-btn" onClick={()=>{setTerm('');setCategory('All');setFormat('all');}}>Clear filters</button></div>}
