@@ -7,6 +7,7 @@ import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, 
 import type { User } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { AnimeComments } from './components/AnimeComments';
+import { SmartDiscovery } from './components/SmartDiscovery';
 
 type StoredProgress = { id: number; title: string; image: string; progress: number; updated: number };
 const readStore = <T,>(key: string, fallback: T): T => {
@@ -24,7 +25,7 @@ function Header({ user, onSignOut, mode, onModeChange }: { user: User | null; on
   return <header className="topbar"><div className="nav-wrap">
     <Link to="/" className="brand"><span className="brand-mark">R</span><span>RYKOCCLLECTION</span></Link><button className="mode-switch" onClick={()=>onModeChange(mode === 'anime' ? 'manga' : 'anime')}><span className={mode==='anime'?'mode-active':''}>Anime</span><span className={mode==='manga'?'mode-active':''}>Manga</span></button>
     <nav className={open ? 'nav-links open' : 'nav-links'}>
-      <Link to="/"><Compass size={16}/> Discover</Link><Link to="/search">Explore</Link><Link to="/watchlist"><Bookmark size={16}/> My list</Link><Link to="/video"><Tv size={16}/> Video</Link><Link to="/privacy"><ShieldCheck size={16}/> Privacy</Link>
+      <Link to="/"><Compass size={16}/> Discover</Link><Link to="/search">Explore</Link><Link to="/smart-discovery"><Sparkles size={16}/> Smart hub</Link><Link to="/watchlist"><Bookmark size={16}/> My list</Link><Link to="/video"><Tv size={16}/> Video</Link><Link to="/privacy"><ShieldCheck size={16}/> Privacy</Link>
     </nav>
     <form className="nav-search" onSubmit={submit}><Search size={17}/><input value={term} onChange={e => setTerm(e.target.value)} placeholder={`Search ${mode}...`} aria-label={`Search ${mode}`}/><kbd>↵</kbd></form>
     {user && <div className="nav-account"><span>{String(user.user_metadata?.display_name || "Reader")}</span><button onClick={onSignOut}>Sign out</button></div>}
@@ -583,5 +584,5 @@ export default function App() {
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
   const signOut = () => { void supabase.auth.signOut(); };
-  return <><Header user={user} onSignOut={signOut} mode={mode} onModeChange={changeMode}/><Routes><Route path="/" element={<Home mode={mode}/>}/><Route path="/search" element={<SearchPage mode={mode}/>}/><Route path="/anime/:id" element={<DetailPage user={user} mode="anime"/>}/><Route path="/manga/:id" element={<DetailPage user={user} mode="manga"/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Anime metadata via AniList · Independent fan discovery project</span></footer></>;
+  return <><Header user={user} onSignOut={signOut} mode={mode} onModeChange={changeMode}/><Routes><Route path="/" element={<Home mode={mode}/>}/><Route path="/search" element={<SearchPage mode={mode}/>}/><Route path="/smart-discovery" element={<SmartDiscovery mode={mode}/>}/><Route path="/anime/:id" element={<DetailPage user={user} mode="anime"/>}/><Route path="/manga/:id" element={<DetailPage user={user} mode="manga"/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Anime metadata via AniList · Independent fan discovery project</span></footer></>;
 }
