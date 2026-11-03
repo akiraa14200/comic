@@ -177,7 +177,6 @@ function CharacterDetails({ character, role }: { character: AnimeCharacter; role
       if (value) facts.push({ label: chunk.label, value: value.trim() });
       if (!next && sentenceEnd >= 0) biography = [prefix, chunk.value.slice(sentenceEnd + 1)].filter(Boolean).join(' ');
     });
-    if (nextChunkOnlyFacts(facts, chunks)) biography = prefix;
     if (!biography || biography === decoded) biography = prefix;
   }
   if (character.gender) facts.push({ label: 'Gender', value: character.gender });
@@ -191,9 +190,7 @@ function CharacterDetails({ character, role }: { character: AnimeCharacter; role
     {paragraphs.length > 0 && <section className="character-detail-group"><h3>Biography</h3><div className="character-bio">{paragraphs.map((paragraph,index)=><p key={index}>{paragraph}</p>)}</div></section>}
     {!decoded && <div className="character-bio">No biography is available for this character yet.</div>}
   </div>;
-}
-function nextChunkOnlyFacts(facts: {label:string;value:string}[], chunks: {label:string;value:string}[]) { return facts.length === chunks.length && chunks.length > 0; }
-\nfunction DetailPage({ user, mode }: { user: User | null; mode: CatalogueMode }) {
+}\nfunction DetailPage({ user, mode }: { user: User | null; mode: CatalogueMode }) {
   const { id } = useParams();
   const [anime, setAnime] = useState<Anime | null>(null);
   const [loading, setLoading] = useState(true);
