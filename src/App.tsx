@@ -318,7 +318,7 @@ function WatchlistPage() {
 function videoEmbedUrl(video: RelatedVideo) {
   try {
     const url = new URL(video.videoUrl);
-    const host = url.hostname.replace(/^www\\./, '').toLowerCase();
+    const host = url.hostname.replace(/^www\./, '').toLowerCase();
     const parts = url.pathname.split('/').filter(Boolean);
 
     // Detect the provider from the actual URL as well as the saved platform value.
@@ -350,7 +350,7 @@ function videoEmbedUrl(video: RelatedVideo) {
 function videoThumbnail(video: RelatedVideo) {
   try {
     const url = new URL(video.videoUrl);
-    const host = url.hostname.replace(/^www\\./, '').toLowerCase();
+    const host = url.hostname.replace(/^www\./, '').toLowerCase();
     const parts = url.pathname.split('/').filter(Boolean);
     let id = '';
     if (host === 'youtu.be') id = parts[0] || '';
