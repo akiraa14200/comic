@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { getMediaCharacters } from './anilist';
 
 export type AnimeCharacter = {
   id: number;
@@ -17,6 +18,7 @@ export type AnimeExternalLink = { url: string; site: string; type?: string };
 export type RelatedVideo = { id: string; titleId: string; videoUrl: string; platform: 'youtube' | 'instagram' | 'dailymotion'; videoTitle: string; creatorName: string; creatorAvatarUrl: string; actionType: 'read' | 'watch'; actionUrl: string; sortOrder: number; createdAt: string; titleName?: string; titleCover?: string; titleFormat?: string; releaseYear?: number };
 export type Anime = {
   id: string;
+  anilistId?: number;
   title: { romaji?: string; english?: string; native?: string };
   description?: string;
   coverImage: { extraLarge?: string; large?: string; color?: string };
@@ -102,6 +104,7 @@ const mapTitle = (row: TitleRow): Anime => {
   const trailerId = youtubeId(row.trailer_url || '');
   return {
     id: row.id,
+    anilistId: Number(row.anilist_id) > 0 ? Number(row.anilist_id) : undefined,
     title: { english: row.name, romaji: row.name, native: row.alternative_names?.[0] },
     description: row.synopsis || '',
     coverImage: { extraLarge: row.cover_url || '', large: row.cover_url || '' },
@@ -125,13 +128,19 @@ const mapTitle = (row: TitleRow): Anime => {
     characters: { pageInfo: { currentPage: 1, hasNextPage: false }, edges: [] }
   };
 };
+const inFlightCache = new Map<string, Promise<unknown>>();
 async function cached<T>(key: string, load: () => Promise<T>): Promise<T> {
   const old = cache.get(key);
   if (old && Date.now() - old.at < TTL) return old.value as T;
-  const value = await load();
-  cache.set(key, { at: Date.now(), value });
-  if (cache.size > 100) cache.delete(cache.keys().next().value || '');
-  return value;
+  const pending = inFlightCache.get(key);
+  if (pending) return pending as Promise<T>;
+  const request = load().then(value => {
+    cache.set(key, { at: Date.now(), value });
+    if (cache.size > 100) cache.delete(cache.keys().next().value || '');
+    return value;
+  }).finally(() => inFlightCache.delete(key));
+  inFlightCache.set(key, request);
+  return request;
 }
 function throwIf(error: { message: string } | null) { if (error) throw new Error(error.message); }
 async function fetchTitles(query: any): Promise<Anime[]> {
@@ -166,29 +175,64 @@ export async function searchAnime(search: string, page = 1, genre?: string, stat
   if (format) request = request.eq('media_type', format);
   return fetchTitles(request);
 }
+const isMangaTitle = (format = '') => /manga|manhwa|manhua|webtoon|comic/i.test(format);
+const emptyCharacters = (page = 1): NonNullable<Anime['characters']> => ({
+  pageInfo: { currentPage: page, hasNextPage: false }, edges: []
+});
+
 export async function getAnime(id: string): Promise<Anime | null> {
   if (!id) return null;
   return cached(`detail:${id}`, async () => {
     const { data, error } = await supabase.from('titles').select('*').eq('id', id).maybeSingle();
     throwIf(error);
     if (!data) return null;
-    const anime = mapTitle(data as TitleRow);
-    const { data: characters, error: characterError } = await supabase.from('characters').select('*').eq('title_id', id).order('created_at').limit(50);
+    const row = data as TitleRow;
+    const anime = mapTitle(row);
+    const { data: characters, error: characterError } = await supabase
+      .from('characters').select('*').eq('title_id', id).order('created_at').limit(50);
     throwIf(characterError);
+    const localEdges = ((characters || []) as CharacterRow[]).map(row => ({
+      role: row.role || 'Supporting',
+      node: {
+        id: hashId(row.id), name: { full: row.name },
+        image: { large: row.image_url || '', medium: row.image_url || '' },
+        description: row.description || '', role: row.role || 'Supporting'
+      }
+    }));
+    let remote = emptyCharacters();
+    if (anime.anilistId) {
+      try {
+        remote = await getMediaCharacters(anime.anilistId, 1, isMangaTitle(anime.format) ? 'MANGA' : 'ANIME');
+      } catch (error) {
+        console.warn('AniList character enrichment unavailable; keeping catalogue characters.', error);
+      }
+    }
+    const seen = new Set<number>();
+    const merged = [...localEdges, ...remote.edges].filter(edge => {
+      if (seen.has(edge.node.id)) return false;
+      seen.add(edge.node.id);
+      return true;
+    });
     anime.characters = {
-      pageInfo: { currentPage: 1, hasNextPage: false },
-      edges: ((characters || []) as CharacterRow[]).map(row => ({
-        role: row.role || 'Supporting',
-        node: { id: hashId(row.id), name: { full: row.name }, image: { large: row.image_url || '', medium: row.image_url || '' }, description: row.description || '', role: row.role || 'Supporting' }
-      }))
+      pageInfo: remote.pageInfo,
+      edges: merged
     };
     return anime;
   });
 }
+
 export async function getAnimeCharacters(id: string, page: number): Promise<NonNullable<Anime['characters']>> {
-  if (page > 1) return { pageInfo: { currentPage: page, hasNextPage: false }, edges: [] };
+  if (!id || !Number.isInteger(page) || page < 1) return emptyCharacters(Math.max(1, page || 1));
   const anime = await getAnime(id);
-  return anime?.characters || { pageInfo: { currentPage: page, hasNextPage: false }, edges: [] };
+  if (!anime) return emptyCharacters(page);
+  if (page === 1) return anime.characters || emptyCharacters();
+  if (!anime.anilistId) return emptyCharacters(page);
+  try {
+    return await getMediaCharacters(anime.anilistId, page, isMangaTitle(anime.format) ? 'MANGA' : 'ANIME');
+  } catch (error) {
+    console.warn('Could not load another AniList character page:', error);
+    throw new Error('More character profiles could not be loaded. Please try again.');
+  }
 }
 export const titleOf = (anime: Anime) => anime.title?.english || anime.title?.romaji || anime.title?.native || 'Untitled';
 export const imageOf = (anime: Anime) => anime.coverImage?.extraLarge || anime.coverImage?.large || anime.bannerImage || '';
