@@ -280,6 +280,9 @@ function WatchlistPage() {
 }
 function VideoPage() {
   const [videos, setVideos] = useState<Anime[]>([]);
+  const [videoTerm, setVideoTerm] = useState('');
+  const [videoGenre, setVideoGenre] = useState('');
+  const [videoSearching, setVideoSearching] = useState(false);
   const [selected, setSelected] = useState<Anime | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -305,14 +308,32 @@ function VideoPage() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    if (!videoTerm.trim() && !videoGenre) return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setVideoSearching(true);
+      searchAnime(videoTerm.trim(), 1, videoGenre || undefined).then(results => {
+        if (!active) return;
+        const matches = results.filter(item => item.trailer?.site?.toLowerCase() === 'youtube' && /^[a-zA-Z0-9_-]{6,}$/.test(item.trailer.id));
+        setVideos(matches);
+        setSelected(matches[0] || null);
+      }).catch(e => { if (active) setError(e instanceof Error ? e.message : 'Video search failed.'); })
+        .finally(() => { if (active) setVideoSearching(false); });
+    }, 400);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [videoTerm, videoGenre]);
+
   const trailerId = selected?.trailer?.id;
+  const videoGenres = ['Action','Adventure','Comedy','Drama','Fantasy','Horror','Mystery','Romance','Sci-Fi','Slice of Life','Sports','Supernatural'];
   return <main className="video-page">
     <div className="video-toolbar">
       <div><span className="eyebrow">RYKOCCLLECTION VIDEO</span><h1>Anime <em>trailers.</em></h1><p>Watch promotional previews linked through AniList metadata and YouTube.</p></div>
       {selected?.siteUrl && <a className="secondary-btn" href={selected.siteUrl} target="_blank" rel="noopener noreferrer">Anime details <ExternalLink size={14}/></a>}
     </div>
+    <div className="video-search-tools"><label className="large-search"><Search/><input value={videoTerm} onChange={event=>setVideoTerm(event.target.value)} placeholder="Search anime to find related videos..."/></label><label className="genre-select"><SlidersHorizontal size={16}/><select value={videoGenre} onChange={event=>setVideoGenre(event.target.value)}><option value="">All genres</option>{videoGenres.map(value=><option key={value}>{value}</option>)}</select></label></div>
     {error && <div className="notice">{error}</div>}
-    {loading ? <div className="video-loading">Loading anime previews…</div> : selected && trailerId ? <section className="video-feature">
+    {loading || videoSearching ? <div className="video-loading">{videoSearching?'Searching related videos…':'Loading anime previews…'}</div> : selected && trailerId ? <section className="video-feature">
       <div className="video-player-wrap"><iframe key={trailerId} src={`https://www.youtube-nocookie.com/embed/${trailerId}?rel=0`} title={`Trailer for ${titleOf(selected)}`} allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/></div>
       <div className="video-selected"><div><span className="eyebrow">NOW SELECTED</span><h2>{titleOf(selected)}</h2><p>{selected.seasonYear || 'Release year unavailable'} · {selected.format || 'Anime'} · {selected.episodes || 'Episode count unavailable'} episodes</p></div><a className="secondary-btn" href={`https://www.youtube.com/watch?v=${trailerId}`} target="_blank" rel="noopener noreferrer">Open on YouTube <ExternalLink size={14}/></a></div>
     </section> : <div className="empty-state"><Play size={28}/><h3>No trailers available right now</h3><p>AniList has not returned supported YouTube trailer IDs for the current catalogue.</p><Link className="secondary-btn" to="/search">Explore anime</Link></div>}
