@@ -38,7 +38,7 @@ function AnimeCard({ anime, onSave, saved, mode = 'anime' }: { anime: Anime; onS
       <span className="poster-format">{anime.format || 'ANIME'}</span>
       {anime.averageScore ? <span className="poster-score"><Star size={12} fill="currentColor"/> {(anime.averageScore / 10).toFixed(1)}</span> : null}
     </Link>
-    <div className="card-meta"><div className="card-title-row"><Link to={`/anime/${anime.id}`} className="card-title">{titleOf(anime)}</Link><button className={saved ? 'save-mini saved' : 'save-mini'} onClick={() => onSave(anime)} aria-label={saved ? 'Remove from watchlist' : 'Add to watchlist'}><Bookmark size={15} fill={saved ? 'currentColor' : 'none'}/></button></div><p>{anime.seasonYear || 'Year unknown'} <span>·</span> {mode === 'manga' ? (anime.chapters ? `${anime.chapters} ch` : anime.volumes ? `${anime.volumes} vols` : anime.status?.replaceAll('_',' ') || 'Manga') : (anime.episodes ? `${anime.episodes} eps` : 'Ongoing')}</p></div>
+    <div className="card-meta"><div className="card-title-row"><Link to={`/${mode}/${anime.id}`} className="card-title">{titleOf(anime)}</Link><button className={saved ? 'save-mini saved' : 'save-mini'} onClick={() => onSave(anime)} aria-label={saved ? 'Remove from watchlist' : 'Add to watchlist'}><Bookmark size={15} fill={saved ? 'currentColor' : 'none'}/></button></div><p>{anime.seasonYear || 'Year unknown'} <span>·</span> {mode === 'manga' ? (anime.chapters ? `${anime.chapters} ch` : anime.volumes ? `${anime.volumes} vols` : anime.status?.replaceAll('_',' ') || 'Manga') : (anime.episodes ? `${anime.episodes} eps` : 'Ongoing')}</p></div>
   </article>;
 }
 
@@ -98,7 +98,7 @@ function Home({ mode }: { mode: CatalogueMode }) {
     <Section title="Trending now" subtitle="What the anime community is watching" items={trending} saved={saved.map(a => a.id)} onSave={toggle} to="/search?sort=trending"/>
     <Section title="This season" subtitle="Fresh stories airing right now" items={seasonal} saved={saved.map(a => a.id)} onSave={toggle}/>
     <Section title="Popular picks" subtitle="Fan favorites worth your time" items={popular} saved={saved.map(a => a.id)} onSave={toggle}/>
-    {history.length > 0 && <section className="section"><div className="section-head"><div><h2>Pick up where you left off</h2><p>Your recently opened anime</p></div></div><div className="history-row">{history.slice(0,5).map(item => <Link to={`/anime/${item.id}`} className="history-item" key={item.id}><img src={item.image} alt=""/><span>{item.title}</span><small>Recently viewed</small></Link>)}</div></section>}
+    {history.length > 0 && <section className="section"><div className="section-head"><div><h2>Pick up where you left off</h2><p>Your recently opened anime</p></div></div><div className="history-row">{history.slice(0,5).map(item => <Link to={`/${mode}/${item.id}`} className="history-item" key={item.id}><img src={item.image} alt=""/><span>{item.title}</span><small>Recently viewed</small></Link>)}</div></section>}
     <div className="api-credit">Anime metadata provided by AniList. RykocCllection is an independent discovery interface.</div>
   </main>;
 }
@@ -215,7 +215,7 @@ function DetailPage({ user, mode }: { user: User | null; mode: CatalogueMode }) 
   const sourceName = anime.source?.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, char => char.toUpperCase()) || 'Not specified';
   const tabs = [
     { id: 'overview' as const, label: 'Overview', icon: <Info size={16}/> },
-    { id: 'characters' as const, label: 'Characters', icon: <Users size={16}/>, count: anime.characters?.edges.length },
+    ...(mode === 'anime' ? [{ id: 'characters' as const, label: 'Characters', icon: <Users size={16}/>, count: anime.characters?.edges.length }] : []),
     { id: 'details' as const, label: 'Details', icon: <FileText size={16}/> },
     { id: 'comments' as const, label: 'Comments', icon: <MessageCircle size={16}/> }
   ];
@@ -232,11 +232,11 @@ function DetailPage({ user, mode }: { user: User | null; mode: CatalogueMode }) 
           {anime.title.native && <p className="native-title">{anime.title.native}</p>}
           <div className="detail-stats">
             {anime.averageScore ? <span><Star size={15} fill="currentColor"/> {(anime.averageScore/10).toFixed(1)} / 10</span> : null}
-            <span><Play size={14}/> {anime.episodes ?? '—'} episodes</span>
+            <span>{mode === 'manga' ? <FileText size={14}/> : <Play size={14}/>} {mode === 'manga' ? (anime.chapters ? `${anime.chapters} chapters` : anime.volumes ? `${anime.volumes} volumes` : 'Chapter count unknown') : `${anime.episodes ?? '—'} episodes`}</span>
             <span><Clock3 size={14}/> {anime.status?.replaceAll('_',' ') || 'Unknown status'}</span>
           </div>
           <div className="genre-tags">{anime.genres?.map(g=><span key={g}>{g}</span>)}</div>
-          <div className="hero-actions">\n            <button className="primary-btn" onClick={start}><Play size={16} fill="currentColor"/> Open player</button>
+          <div className="hero-actions">\n            {mode === 'anime' && <button className="primary-btn" onClick={start}><Play size={16} fill="currentColor"/> Open player</button>}
             <button className="secondary-btn" onClick={()=>toggle(anime)}>{isSaved ? <Heart size={16} fill="currentColor"/> : <Bookmark size={16}/>} {isSaved ? 'In my list' : 'Add to list'}</button>
             {anime.siteUrl && <a className="secondary-btn" href={anime.siteUrl} target="_blank" rel="noreferrer">AniList <ExternalLink size={14}/></a>}
           </div>
@@ -252,7 +252,7 @@ function DetailPage({ user, mode }: { user: User | null; mode: CatalogueMode }) 
       {activeTab === 'overview' && <section className="entry-panel overview-panel">
         <div className="entry-section-heading"><span className="eyebrow">THE STORY</span><h2>Overview</h2></div>
         <div className="overview-description">{cleanDescription(anime.description) || 'No description is available for this entry yet.'}</div>
-        <div className="overview-trailer">
+        {mode === 'anime' && <div className="overview-trailer">
           <div className="entry-section-heading"><span className="eyebrow">OFFICIAL PREVIEW</span><h2>Trailer</h2></div>
           {trailerId ? <div className="entry-trailer-frame"><iframe src={`https://www.youtube-nocookie.com/embed/${trailerId}?rel=0`} title={`Trailer for ${titleOf(anime)}`} allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/></div> :
             <div className="entry-empty"><Youtube size={22}/><span>No supported trailer is listed for this entry.</span>{anime.siteUrl && <a href={anime.siteUrl} target="_blank" rel="noreferrer">Check entry sources <ExternalLink size={13}/></a>}</div>}
@@ -281,15 +281,15 @@ function DetailPage({ user, mode }: { user: User | null; mode: CatalogueMode }) 
       {activeTab === 'details' && <section className="entry-panel details-panel">
         <div className="entry-section-heading"><span className="eyebrow">ENTRY INFORMATION</span><h2>Details</h2></div>
         <div className="entry-details-grid">
-          <div><span>Type</span><strong>{anime.format || 'Not listed'}</strong></div>
+          <div><span>Type</span><strong>{anime.format || (mode === 'manga' ? 'Manga' : 'Anime')}</strong></div>
           <div><span>Status</span><strong>{anime.status?.replaceAll('_',' ') || 'Not listed'}</strong></div>
-          <div><span>Release</span><strong>{releaseDate}</strong></div>
+          <div><span>{mode === 'manga' ? 'Start date' : 'Release'}</span><strong>{releaseDate}</strong></div>
           <div><span>Author / creator</span><strong>{authors.length?authors.join(', '):'Not listed by AniList'}</strong></div>
           <div><span>Artist</span><strong>{artists.length?artists.join(', '):'Not listed by AniList'}</strong></div>
           <div><span>Country</span><strong>{anime.countryOfOrigin || 'Not listed'}</strong></div>
           <div className="detail-wide"><span>Alternative titles</span><strong>{[anime.title.english,anime.title.romaji,anime.title.native,...(anime.synonyms||[])].filter((value,index,array)=>value && array.indexOf(value)===index).join(' · ') || 'Not listed'}</strong></div>
           <div><span>Source material</span><strong>{sourceName}</strong></div>
-          <div><span>Studio</span><strong>{anime.studios?.nodes?.map(studio=>studio.name).join(', ') || 'Not listed'}</strong></div>
+          {mode === 'manga' ? <><div><span>Chapters</span><strong>{anime.chapters ?? 'Not announced'}</strong></div><div><span>Volumes</span><strong>{anime.volumes ?? 'Not announced'}</strong></div></> : <div><span>Studio</span><strong>{anime.studios?.nodes?.map(studio=>studio.name).join(', ') || 'Not listed'}</strong></div>}
         </div>
         <div className="entry-source-links"><h3><Globe size={17}/> Source links</h3><div>{anime.siteUrl && <a href={anime.siteUrl} target="_blank" rel="noreferrer">AniList entry <ExternalLink size={13}/></a>}{(anime.externalLinks||[]).filter(link=>link.url?.startsWith('https://')).slice(0,12).map(link=><a key={link.url} href={link.url} target="_blank" rel="noreferrer">{link.site || 'External source'} <ExternalLink size={13}/></a>)}</div></div>
       </section>}
@@ -306,7 +306,7 @@ function WatchlistPage() {
   const groups: Array<'Watching' | 'Plan to Watch' | 'Completed' | 'Waiting'> = ['Watching', 'Plan to Watch', 'Completed', 'Waiting'];
   return <main className="content-page"><div className="page-heading"><span className="eyebrow">YOUR PERSONAL COLLECTION</span><h1>Your <em>Library.</em></h1><p>Organize saved anime by your watch progress.</p></div>
     {!saved.length ? <div className="empty-state"><Bookmark size={28}/><h3>Your library is waiting</h3><p>Save anime from Home or Browse and they will appear here.</p><Link className="primary-btn" to="/search">Discover anime</Link></div> :
-    groups.map(group => { const entries = saved.filter(item => (statuses[item.id] || 'Plan to Watch') === group); return <section className="section library-group" key={group}><div className="section-head"><div><h2>{group}</h2><p>{entries.length} {entries.length===1?'title':'titles'}</p></div></div>{entries.length ? <div className="anime-grid">{entries.map(item=><article className="anime-card" key={item.id}><Link to={`/anime/${item.id}`} className="poster-wrap"><img src={imageOf(item)} alt={titleOf(item)} loading="lazy"/></Link><div className="card-meta"><Link to={`/anime/${item.id}`} className="card-title">{titleOf(item)}</Link><select aria-label={`Status for ${titleOf(item)}`} value={statuses[item.id] || 'Plan to Watch'} onChange={event=>setLibraryStatus(item.id,event.target.value as typeof groups[number])}>{groups.map(status=><option key={status}>{status}</option>)}</select><button className="library-remove" onClick={()=>toggle(item)}>Remove from library</button></div></article>)}</div> : <p className="library-empty">No titles in this category yet.</p>}</section>; })}
+    groups.map(group => { const entries = saved.filter(item => (statuses[item.id] || 'Plan to Watch') === group); return <section className="section library-group" key={group}><div className="section-head"><div><h2>{group}</h2><p>{entries.length} {entries.length===1?'title':'titles'}</p></div></div>{entries.length ? <div className="anime-grid">{entries.map(item=><article className="anime-card" key={item.id}><Link to={`/${mode}/${item.id}`} className="poster-wrap"><img src={imageOf(item)} alt={titleOf(item)} loading="lazy"/></Link><div className="card-meta"><Link to={`/${mode}/${item.id}`} className="card-title">{titleOf(item)}</Link><select aria-label={`Status for ${titleOf(item)}`} value={statuses[item.id] || 'Plan to Watch'} onChange={event=>setLibraryStatus(item.id,event.target.value as typeof groups[number])}>{groups.map(status=><option key={status}>{status}</option>)}</select><button className="library-remove" onClick={()=>toggle(item)}>Remove from library</button></div></article>)}</div> : <p className="library-empty">No titles in this category yet.</p>}</section>; })}
   </main>;
 }
 function VideoPage() {
@@ -482,5 +482,5 @@ export default function App() {
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
   const signOut = () => { void supabase.auth.signOut(); };
-  return <><Header user={user} onSignOut={signOut} mode={mode} onModeChange={changeMode}/><Routes><Route path="/" element={<Home mode={mode}/>}/><Route path="/search" element={<SearchPage mode={mode}/>}/><Route path="/anime/:id" element={<DetailPage user={user} mode="anime"/>}/><Route path="/manga/:id" element={<DetailPage user={user} mode="manga"}/> }<Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Anime metadata via AniList · Independent fan discovery project</span></footer></>;
+  return <><Header user={user} onSignOut={signOut} mode={mode} onModeChange={changeMode}/><Routes><Route path="/" element={<Home mode={mode}/>}/><Route path="/search" element={<SearchPage mode={mode}/>}/><Route path="/anime/:id" element={<DetailPage user={user} mode="anime"/>}/><Route path="/manga/:id" element={<DetailPage user={user} mode="manga"/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Anime metadata via AniList · Independent fan discovery project</span></footer></>;
 }
