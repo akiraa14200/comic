@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles } from 'lucide-react';
+// The application UI and page components are defined below.
 import { Anime, cleanDescription, getAnime, getPopular, getSeasonal, getTrending, imageOf, searchAnime, titleOf } from './lib/anilist';
 
 type StoredProgress = { id: number; title: string; image: string; progress: number; updated: number };
@@ -14,7 +15,7 @@ function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   useEffect(() => setOpen(false), [location.pathname]);
-  const submit = (event: React.FormEvent) => { event.preventDefault(); navigate(term.trim() ? `/search?q=${encodeURIComponent(term.trim())}` : '/search'); setOpen(false); };
+  const submit = (event: FormEvent) => { event.preventDefault(); navigate(term.trim() ? `/search?q=${encodeURIComponent(term.trim())}` : '/search'); setOpen(false); };
   return <header className="topbar"><div className="nav-wrap">
     <Link to="/" className="brand"><span className="brand-mark">K</span><span>KAIRO</span></Link>
     <nav className={open ? 'nav-links open' : 'nav-links'}>
