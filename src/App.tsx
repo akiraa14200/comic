@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Home as HomeIcon, UserRound, ChevronLeft, Download, Upload, FolderOpen } from 'lucide-react';
+import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Home as HomeIcon, UserRound, ChevronLeft, Download, Upload, FolderOpen, MoreVertical, Settings as SettingsIcon, Moon, Eye, RotateCw, Trash2, Palette, Github, HeartHandshake, Database, Bell } from 'lucide-react';
 // The application UI and page components are defined below.
 import { applyLibraryBackup, isNativeAndroid, LibraryBackup, makeLibraryBackup, scheduleNativeLibraryBackup } from './lib/libraryBackup';
 import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getSeasonal, getTrending, getVideoCatalogue, imageOf, searchAnime, titleOf } from './lib/anilist';
@@ -17,10 +17,11 @@ const readStore = <T,>(key: string, fallback: T): T => {
 type CatalogueMode = 'anime' | 'manga';
 function Header({ user, onSignOut, mode, onModeChange }: { user: User | null; onSignOut: () => void; mode: CatalogueMode; onModeChange: (mode: CatalogueMode) => void }) {
   const [open, setOpen] = useState(false);
+  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [term, setTerm] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
-  useEffect(() => setOpen(false), [location.pathname]);
+  useEffect(() => { setOpen(false); setQuickMenuOpen(false); }, [location.pathname]);
   const submit = (event: FormEvent) => { event.preventDefault(); navigate(term.trim() ? `/search?q=${encodeURIComponent(term.trim())}` : '/search'); setOpen(false); };
   return <header className="topbar"><div className="nav-wrap">
     <Link to="/" className="brand"><span className="brand-mark">R</span><span>RYKOCCLLECTION</span></Link><button className="mode-switch" onClick={()=>onModeChange(mode === 'anime' ? 'manga' : 'anime')}><span className={mode==='anime'?'mode-active':''}>Anime</span><span className={mode==='manga'?'mode-active':''}>Manga</span></button>
@@ -29,6 +30,7 @@ function Header({ user, onSignOut, mode, onModeChange }: { user: User | null; on
     </nav>
     <form className="nav-search" onSubmit={submit}><Search size={17}/><input value={term} onChange={e => setTerm(e.target.value)} placeholder={`Search ${mode}...`} aria-label={`Search ${mode}`}/><kbd>↵</kbd></form>
     {user && <div className="nav-account"><span>{String(user.user_metadata?.display_name || "Reader")}</span><button onClick={onSignOut}>Sign out</button></div>}
+    <div className="quick-menu-wrap"><button className="icon-btn quick-menu-trigger" onClick={()=>setQuickMenuOpen(value=>!value)} aria-label="Open more options" aria-expanded={quickMenuOpen} aria-haspopup="menu"><MoreVertical size={20}/></button>{quickMenuOpen && <><button className="quick-menu-dismiss" aria-label="Close menu" onClick={()=>setQuickMenuOpen(false)}/><div className="quick-menu-panel" role="menu"><div className="quick-menu-heading">RYKOCCLLECTION</div><Link role="menuitem" to="/settings"><SettingsIcon size={17}/>Settings<ChevronRight size={15}/></Link><Link role="menuitem" to="/about"><Info size={17}/>About<ChevronRight size={15}/></Link></div></>}</div>
     <button className="icon-btn mobile-menu" onClick={() => setOpen(!open)} aria-label="Toggle menu">{open ? <X/> : <Menu/>}</button>
   </div></header>;
 }
@@ -496,6 +498,43 @@ function AccountPage({ user }: { user: User | null }) {
   </main>;
 }
 
+function SettingsPage({ mode, onModeChange }: { mode: CatalogueMode; onModeChange: (mode: CatalogueMode) => void }) {
+  const [reduceMotion,setReduceMotion]=useState(()=>readStore('rykoc-reduce-motion',false));
+  const [autoCarousel,setAutoCarousel]=useState(()=>readStore('rykoc-auto-carousel',true));
+  const [showScores,setShowScores]=useState(()=>readStore('rykoc-show-scores',true));
+  const [message,setMessage]=useState('');
+  useEffect(()=>{localStorage.setItem('rykoc-reduce-motion',JSON.stringify(reduceMotion));document.documentElement.classList.toggle('reduce-motion',reduceMotion);},[reduceMotion]);
+  useEffect(()=>{localStorage.setItem('rykoc-auto-carousel',JSON.stringify(autoCarousel));},[autoCarousel]);
+  useEffect(()=>{localStorage.setItem('rykoc-show-scores',JSON.stringify(showScores));document.documentElement.classList.toggle('hide-scores',!showScores);},[showScores]);
+  const clearSearchHistory=()=>{localStorage.removeItem('rykoc-search-history');setMessage('Recent search suggestions cleared from this device.');};
+  const clearMetadataCache=()=>{localStorage.removeItem('rykoc-anilist-cache-v1');setMessage('Cached catalogue metadata cleared. Your saved library and backup files were not changed.');};
+  const resetPreferences=()=>{setReduceMotion(false);setAutoCarousel(true);setShowScores(true);onModeChange('anime');setMessage('Display preferences restored to defaults.');};
+  return <main className="content-page settings-page"><div className="page-heading"><span className="eyebrow"><SettingsIcon size={14}/> PERSONALIZE YOUR EXPERIENCE</span><h1>App <em>settings.</em></h1><p>These preferences are saved locally on this device.</p></div>
+    <section className="settings-group"><div className="settings-group-heading"><Palette/><div><h2>Display & experience</h2><p>Choose how RykocCllection looks and behaves.</p></div></div>
+      <div className="settings-row"><span className="settings-row-icon"><Compass/></span><span className="settings-row-copy"><strong>Default catalogue</strong><small>Choose which catalogue opens when you launch the app.</small></span><select aria-label="Default catalogue" value={mode} onChange={event=>onModeChange(event.target.value as CatalogueMode)}><option value="anime">Anime</option><option value="manga">Manga</option></select></div>
+      <div className="settings-row"><span className="settings-row-icon"><RotateCw/></span><span className="settings-row-copy"><strong>Auto-rotate featured titles</strong><small>Automatically change the featured title on the home screen.</small></span><button className={autoCarousel?'settings-switch active':'settings-switch'} role="switch" aria-checked={autoCarousel} onClick={()=>setAutoCarousel(value=>!value)}><span/></button></div>
+      <div className="settings-row"><span className="settings-row-icon"><Eye/></span><span className="settings-row-copy"><strong>Show catalogue scores</strong><small>Display community scores on title cards.</small></span><button className={showScores?'settings-switch active':'settings-switch'} role="switch" aria-checked={showScores} onClick={()=>setShowScores(value=>!value)}><span/></button></div>
+      <div className="settings-row"><span className="settings-row-icon"><Moon/></span><span className="settings-row-copy"><strong>Reduce motion</strong><small>Reduce animated transitions and movement.</small></span><button className={reduceMotion?'settings-switch active':'settings-switch'} role="switch" aria-checked={reduceMotion} onClick={()=>setReduceMotion(value=>!value)}><span/></button></div>
+    </section>
+    <section className="settings-group"><div className="settings-group-heading"><Database/><div><h2>Local data</h2><p>Manage temporary data without deleting your library.</p></div></div>
+      <div className="settings-row"><span className="settings-row-icon"><History/></span><span className="settings-row-copy"><strong>Recent search history</strong><small>Remove saved search suggestions from this device.</small></span><button className="settings-action" onClick={clearSearchHistory}>Clear</button></div>
+      <div className="settings-row"><span className="settings-row-icon"><Trash2/></span><span className="settings-row-copy"><strong>Catalogue cache</strong><small>Clear cached AniList metadata. It will reload when you browse online.</small></span><button className="settings-action" onClick={clearMetadataCache}>Clear cache</button></div>
+      <div className="settings-row"><span className="settings-row-icon"><ShieldCheck/></span><span className="settings-row-copy"><strong>Privacy & backup</strong><small>Review privacy information and protect your personal library.</small></span><Link className="settings-action" to="/privacy">Open</Link></div>
+    </section>
+    <div className="settings-footer"><button className="secondary-btn" onClick={resetPreferences}>Reset display preferences</button>{message && <p role="status" className="settings-message">{message}</p>}</div>
+    <p className="fine-print">Settings do not delete your watchlist, progress, account, or existing backup files. Notification reminders are shown inside the app; push notifications are not currently supported.</p>
+  </main>;
+}
+
+function AboutPage() {
+  return <main className="content-page about-page"><section className="about-hero"><div className="about-brand-mark">R</div><span className="eyebrow">INDEPENDENT ANIME & MANGA DISCOVERY</span><h1>RYKO<em>CCLLECTION</em></h1><p>Discover stories. Find your next world.</p><span className="about-version">A fan-made discovery project</span></section>
+    <section className="about-card"><span className="eyebrow">OUR PURPOSE</span><h2>Made for curious fans.</h2><p>RykocCllection is an independent catalogue and discovery experience for anime and manga fans. Explore titles, learn about characters, keep a personal library, discover trailers and find your next favourite story.</p><p>We are a discovery platform, not a chapter-reading or full-episode hosting service. We do not claim ownership of third-party titles, artwork, characters or video content.</p></section>
+    <section className="about-card"><span className="eyebrow">CREDITS & ATTRIBUTION</span><div className="credit-row"><span className="credit-icon"><Database/></span><div><strong>AniList</strong><p>Public anime and manga metadata, catalogue information, scores and character data.</p><a href="https://anilist.co" target="_blank" rel="noopener noreferrer">Visit AniList <ExternalLink size={13}/></a></div></div><div className="credit-row"><span className="credit-icon"><Youtube/></span><div><strong>YouTube</strong><p>Trailer playback is embedded from YouTube when an official or linked trailer is available. Video rights remain with their respective publishers.</p><a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer">Visit YouTube <ExternalLink size={13}/></a></div></div><div className="credit-row"><span className="credit-icon"><HeartHandshake/></span><div><strong>Open-source community</strong><p>Built with React, Vite, Capacitor, Supabase and Lucide icons.</p><a href="https://react.dev" target="_blank" rel="noopener noreferrer">React <ExternalLink size={13}/></a><a href="https://capacitorjs.com" target="_blank" rel="noopener noreferrer">Capacitor <ExternalLink size={13}/></a><a href="https://supabase.com" target="_blank" rel="noopener noreferrer">Supabase <ExternalLink size={13}/></a></div></div></section>
+    <section className="about-card about-disclaimer"><span className="eyebrow">IMPORTANT</span><p>RykocCllection is an independent fan project and is not affiliated with, endorsed by, or sponsored by AniList, YouTube, animation studios, publishers or rights holders. Metadata and external media are provided by their respective services and owners.</p></section>
+    <p className="about-footer">RYKOCCLLECTION · Discover stories. Find your next world.</p>
+  </main>;
+}
+
 function PrivacyPage() {
   const [protection, setProtection] = useState(()=>readStore('kairo-privacy', true));
   const [backupMessage, setBackupMessage] = useState('');
@@ -585,5 +624,5 @@ export default function App() {
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
   const signOut = () => { void supabase.auth.signOut(); };
-  return <><Header user={user} onSignOut={signOut} mode={mode} onModeChange={changeMode}/><Routes><Route path="/" element={<Home mode={mode}/>}/><Route path="/search" element={<SearchPage mode={mode}/>}/><Route path="/smart-discovery" element={<SmartDiscovery mode={mode}/>}/><Route path="/anime/:id" element={<DetailPage user={user} mode="anime"/>}/><Route path="/manga/:id" element={<DetailPage user={user} mode="manga"/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Anime metadata via AniList · Independent fan discovery project</span></footer></>;
+  return <><Header user={user} onSignOut={signOut} mode={mode} onModeChange={changeMode}/><Routes><Route path="/" element={<Home mode={mode}/>}/><Route path="/search" element={<SearchPage mode={mode}/>}/><Route path="/smart-discovery" element={<SmartDiscovery mode={mode}/>}/><Route path="/anime/:id" element={<DetailPage user={user} mode="anime"/>}/><Route path="/manga/:id" element={<DetailPage user={user} mode="manga"/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/settings" element={<SettingsPage mode={mode} onModeChange={changeMode}/>}/><Route path="/about" element={<AboutPage/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Anime metadata via AniList · Independent fan discovery project</span></footer></>;
 }
