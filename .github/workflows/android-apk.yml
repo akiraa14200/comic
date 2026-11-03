@@ -42,6 +42,11 @@ jobs:
       - name: Generate Android project
         run: npx cap add android
 
+      - name: Install native library backup plugin
+        run: |
+          mkdir -p android/app/src/main/java/com/rykoccllection/animediscovery
+          cp android-native/app/src/main/java/com/rykoccllection/animediscovery/*.java android/app/src/main/java/com/rykoccllection/animediscovery/
+
       - name: Copy web assets into Android app
         run: npx cap sync android
 
