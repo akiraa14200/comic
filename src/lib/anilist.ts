@@ -71,10 +71,11 @@ const detailFields = `
 
 type AniListResponse<T> = { data?: T; errors?: { message?: string }[] };
 const memoryCache = new Map<string, { expires: number; value: unknown }>();
+const inFlightRequests = new Map<string, Promise<unknown>>();
 const CACHE_TTL = 5 * 60 * 1000;
 const DETAIL_CACHE_TTL = 15 * 60 * 1000;
 
-async function query<T>(queryText: string, variables: Record<string, unknown> = {}, cacheTtl = CACHE_TTL): Promise<T> {
+async function queryUncached<T>(queryText: string, variables: Record<string, unknown> = {}, cacheTtl = CACHE_TTL): Promise<T> {
   const cacheKey = JSON.stringify([queryText, variables]);
   const cached = memoryCache.get(cacheKey);
   if (cached && cached.expires > Date.now()) return cached.value as T;
@@ -145,6 +146,24 @@ async function query<T>(queryText: string, variables: Record<string, unknown> = 
   throw lastError;
 }
 
+async function query<T>(queryText: string, variables: Record<string, unknown> = {}, cacheTtl = CACHE_TTL): Promise<T> {
+  const key = JSON.stringify([queryText, variables]);
+  const existing = inFlightRequests.get(key);
+  if (existing) return existing as Promise<T>;
+  const request = queryUncached<T>(queryText, variables, cacheTtl);
+  inFlightRequests.set(key, request);
+  try { return await request; }
+  finally { inFlightRequests.delete(key); }
+}
+
+export async function getVideoCatalogue(page = 1, genre?: string): Promise<Anime[]> {
+  const data = await query<{ Page: { media: Anime[] } }>(
+    `query($page: Int, $genre: String) { Page(page: $page, perPage: 50) { media(type: ANIME, genre: $genre, sort: TRENDING_DESC, isAdult: false) { ${fields} } } }`,
+    { page, genre: genre || undefined }
+  );
+  return data.Page?.media || [];
+}
+
 export async function getTrending(): Promise<Anime[]> {
   const data = await query<{ Page: { media: Anime[] } }>(`query { Page(perPage: 12) { media(type: ANIME, sort: TRENDING_DESC, isAdult: false) { ${fields} } } }`);
   return data.Page?.media || [];
@@ -168,7 +187,7 @@ export async function getSeasonal(): Promise<Anime[]> {
 
 export async function searchAnime(search: string, page = 1, genre?: string, status?: string, format?: string): Promise<Anime[]> {
   const data = await query<{ Page: { media: Anime[] } }>(
-    `query($search: String, $page: Int, $genre: String, $status: MediaStatus, $format: MediaFormat) { Page(page: $page, perPage: 24) { media(type: ANIME, search: $search, genre: $genre, status: $status, format: $format, sort: SEARCH_MATCH, isAdult: false) { ${fields} } } }`,
+    `query($search: String, $page: Int, $genre: String, $status: MediaStatus, $format: MediaFormat) { Page(page: $page, perPage: 50) { media(type: ANIME, search: $search, genre: $genre, status: $status, format: $format, sort: SEARCH_MATCH, isAdult: false) { ${fields} } } }`,
     { search: search || undefined, page, genre: genre || undefined, status: status || undefined, format: format || undefined }
   );
   return data.Page?.media || [];
