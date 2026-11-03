@@ -195,7 +195,7 @@ export const imageOf = (anime: Anime) => anime.coverImage?.extraLarge || anime.c
 export const cleanDescription = (value = '') => value.replace(/<[^>]*>/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#039;|&#39;/g, "'").replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
 
 export async function enrichVideoMetadata(videos: RelatedVideo[]): Promise<RelatedVideo[]> {
-  const youtubeVideos = videos.filter(video => /youtu\\.be|youtube(?:-nocookie)?\\.com/i.test(video.videoUrl));
+  const youtubeVideos = videos.filter(video => /youtu\.be|youtube(?:-nocookie)?\.com/i.test(video.videoUrl));
   if (!youtubeVideos.length) return videos;
   try {
     const { data, error } = await supabase.functions.invoke('video-metadata', {
