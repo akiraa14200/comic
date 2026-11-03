@@ -172,7 +172,7 @@ function CharacterDetails({ character, role }: { character: AnimeCharacter; role
     });
     chunks.forEach((chunk, index) => {
       const next = chunks[index + 1];
-      const sentenceEnd = chunk.value.search(/(?<=[.!?])\\s+(?=[A-Z])/);
+      const boundary = chunk.value.match(/[.!?)]\\s+(?=[A-Z])/);\n      const sentenceEnd = boundary ? boundary.index! + 1 : -1;
       const value = next || sentenceEnd < 0 ? chunk.value : chunk.value.slice(0, sentenceEnd);
       if (value) facts.push({ label: chunk.label, value: value.trim() });
       if (!next && sentenceEnd >= 0) biography = [prefix, chunk.value.slice(sentenceEnd + 1)].filter(Boolean).join(' ');
