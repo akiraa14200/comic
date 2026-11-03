@@ -166,10 +166,10 @@ export async function getSeasonal(): Promise<Anime[]> {
   return data.Page?.media || [];
 }
 
-export async function searchAnime(search: string, page = 1, genre?: string): Promise<Anime[]> {
+export async function searchAnime(search: string, page = 1, genre?: string, status?: string, format?: string): Promise<Anime[]> {
   const data = await query<{ Page: { media: Anime[] } }>(
-    `query($search: String, $page: Int, $genre: String) { Page(page: $page, perPage: 24) { media(type: ANIME, search: $search, genre: $genre, sort: SEARCH_MATCH, isAdult: false) { ${fields} } } }`,
-    { search: search || undefined, page, genre: genre || undefined }
+    `query($search: String, $page: Int, $genre: String, $status: MediaStatus, $format: MediaFormat) { Page(page: $page, perPage: 24) { media(type: ANIME, search: $search, genre: $genre, status: $status, format: $format, sort: SEARCH_MATCH, isAdult: false) { ${fields} } } }`,
+    { search: search || undefined, page, genre: genre || undefined, status: status || undefined, format: format || undefined }
   );
   return data.Page?.media || [];
 }
