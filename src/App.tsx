@@ -96,8 +96,8 @@ function Home({ mode }: { mode: CatalogueMode }) {
     {error && <div className="notice"><strong>Catalogue unavailable.</strong> {error} Check your connection and try again.</div>}
     {loading && <div className="section"><div className="section-head"><h2>Finding something great</h2></div><div className="anime-grid">{Array.from({length: 6}, (_,i) => <div className="skeleton-card" key={i}><div className="skeleton-poster"/><div className="skeleton-line"/></div>)}</div></div>}
     <Section title="Trending now" subtitle={`Popular ${mode} right now`} items={trending} saved={saved.map(a => a.id)} onSave={toggle} to="/search?sort=trending" mode={mode}/>
-    <Section title={mode === "manga" ? "Recently released" : "This season"} subtitle={mode === "manga" ? "Fresh manga picks from AniList" : "Fresh stories airing right now"} items={seasonal} saved={saved.map(a => a.id)} onSave={toggle}/>
-    <Section title="Popular picks" subtitle="Fan favorites worth your time" items={popular} saved={saved.map(a => a.id)} onSave={toggle}/>
+    <Section title={mode === "manga" ? "Recently released" : "This season"} subtitle={mode === "manga" ? "Fresh manga picks from AniList" : "Fresh stories airing right now"} items={seasonal} saved={saved.map(a => a.id)} onSave={toggle} mode={mode}/>
+    <Section title="Popular picks" subtitle="Fan favorites worth your time" items={popular} saved={saved.map(a => a.id)} onSave={toggle} mode={mode}/>
     {history.length > 0 && <section className="section"><div className="section-head"><div><h2>Pick up where you left off</h2><p>Your recently opened anime</p></div></div><div className="history-row">{history.slice(0,5).map(item => <Link to={`/${mode}/${item.id}`} className="history-item" key={item.id}><img src={item.image} alt=""/><span>{item.title}</span><small>Recently viewed</small></Link>)}</div></section>}
     <div className="api-credit">Anime metadata provided by AniList. RykocCllection is an independent discovery interface.</div>
   </main>;
