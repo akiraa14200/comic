@@ -255,7 +255,7 @@ function DetailPage({ user }: { user: User | null }) {
         <div className="overview-description">{cleanDescription(anime.description) || 'No description is available for this entry yet.'}</div>
         <div className="overview-trailer">
           <div className="entry-section-heading"><span className="eyebrow">OFFICIAL PREVIEW</span><h2>Trailer</h2></div>
-          {trailerId ? <div className="entry-trailer-frame"><iframe src={`https://www.youtube-nocookie.com/embed/${trailerId}?rel=0`} title={`Trailer for ${titleOf(anime)}`} allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/></div> :
+          {trailerId ? <div className="entry-trailer-frame"><iframe src={`https://www.youtube-nocookie.com/embed/${trailerId}?rel=0`} title={`Trailer for ${titleOf(anime)}`} allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/></div> :
             <div className="entry-empty"><Youtube size={22}/><span>No supported trailer is listed for this entry.</span>{anime.siteUrl && <a href={anime.siteUrl} target="_blank" rel="noreferrer">Check entry sources <ExternalLink size={13}/></a>}</div>}
         </div>
       </section>}
@@ -318,19 +318,34 @@ function WatchlistPage() {
 function videoEmbedUrl(video: RelatedVideo) {
   try {
     const url = new URL(video.videoUrl);
-    if (video.platform === 'youtube') {
-      const host = url.hostname.replace(/^www\./, '').toLowerCase();
-      let id = host === 'youtu.be' ? url.pathname.split('/').filter(Boolean)[0] : url.searchParams.get('v');
-      if (!id && /youtube(-nocookie)?\.com$/.test(host)) id = url.pathname.split('/').filter(Boolean).slice(-1)[0];
-      return id ? `https://www.youtube-nocookie.com/embed/${id}?rel=0&playsinline=1` : '';
+    const host = url.hostname.replace(/^www\\./, '').toLowerCase();
+    const parts = url.pathname.split('/').filter(Boolean);
+
+    // Detect the provider from the actual URL as well as the saved platform value.
+    // This prevents old or incorrectly tagged records from producing a broken embed.
+    if (host === 'youtu.be' || host.endsWith('youtube.com') || host.endsWith('youtube-nocookie.com')) {
+      let id = host === 'youtu.be' ? parts[0] : url.searchParams.get('v');
+      if (!id && ['embed', 'shorts', 'live', 'v'].includes(parts[0])) id = parts[1];
+      if (!id && parts.length === 1) id = parts[0];
+      if (!id || !/^[a-zA-Z0-9_-]{6,}$/.test(id)) return '';
+      const params = new URLSearchParams({
+        rel: '0',
+        playsinline: '1',
+        enablejsapi: '1',
+        origin: window.location.origin
+      });
+      return `https://www.youtube-nocookie.com/embed/${id}?${params.toString()}`;
     }
-    if (video.platform === 'dailymotion') {
-      const match = url.pathname.match(/(?:video\/)?([a-zA-Z0-9]+)/);
-      return match?.[1] ? `https://www.dailymotion.com/embed/video/${match[1]}` : '';
+
+    if (host === 'dai.ly' || host.endsWith('dailymotion.com')) {
+      const id = parts[0] === 'video' ? parts[1]?.split('_')[0] : parts[0]?.split('_')[0];
+      return id && /^[a-zA-Z0-9]+$/.test(id) ? `https://www.dailymotion.com/embed/video/${id}` : '';
     }
-    if (video.platform === 'instagram') {
-      const clean = video.videoUrl.split('?')[0].replace(/\/$/, '');
-      return clean + '/embed';
+
+    if (host === 'instagram.com' || host.endsWith('.instagram.com') || host === 'instagr.am') {
+      const kind = ['p', 'reel', 'reels', 'tv'].includes(parts[0]) ? parts[0] : '';
+      const id = kind ? parts[1] : '';
+      return kind && id ? `https://www.instagram.com/${kind}/${id}/embed/` : '';
     }
   } catch { return ''; }
   return '';
