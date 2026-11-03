@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft } from 'lucide-react';
 // The application UI and page components are defined below.
-import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getSeasonal, getTrending, getRelatedVideos, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
+import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getSeasonal, getTrending, getRelatedVideos, enrichVideoMetadata, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { AnimeComments } from './components/AnimeComments';
@@ -382,14 +382,14 @@ function VideoPage() {
   const [term,setTerm]=useState('');
   const [format,setFormat]=useState<'all'|'video'|'short'>('all');
   const [category,setCategory]=useState('All');
-  useEffect(()=>{let active=true;getRelatedVideos(1).then(data=>{if(!active)return;setVideos(data);setHasMore(data.length===40);}).catch(e=>{if(active)setError(e instanceof Error?e.message:'Could not load videos.');}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[]);
+  useEffect(()=>{let active=true;getRelatedVideos(1).then(data=>enrichVideoMetadata(data)).then(data=>{if(!active)return;setVideos(data);setHasMore(data.length===40);}).catch(e=>{if(active)setError(e instanceof Error?e.message:'Could not load videos.');}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[]);
   const searchable=videos.filter(v=>[v.videoTitle,v.creatorName,v.titleName].join(' ').toLowerCase().includes(term.toLowerCase()));
   const categoryMatch=(v:RelatedVideo)=>category==='All'||(v.titleFormat||'').toLowerCase()===category.toLowerCase();
   const filtered=searchable.filter(categoryMatch);
   const shorts=filtered.filter(v=>detectVideoFormat(v.videoUrl)==='short');
   const regular=filtered.filter(v=>detectVideoFormat(v.videoUrl)==='video');
   const visible=format==='short'?shorts:format==='video'?regular:filtered;
-  const loadMore=async()=>{if(loadingMore||!hasMore)return;setLoadingMore(true);setError('');try{const data=await getRelatedVideos(page+1);setVideos(old=>[...old,...data.filter(v=>!old.some(x=>x.id===v.id))]);setPage(page+1);setHasMore(data.length===40);}catch(e){setError(e instanceof Error?e.message:'Could not load more videos.');}finally{setLoadingMore(false);}};
+  const loadMore=async()=>{if(loadingMore||!hasMore)return;setLoadingMore(true);setError('');try{const raw=await getRelatedVideos(page+1);const data=await enrichVideoMetadata(raw);setVideos(old=>[...old,...data.filter(v=>!old.some(x=>x.id===v.id))]);setPage(page+1);setHasMore(data.length===40);}catch(e){setError(e instanceof Error?e.message:'Could not load more videos.');}finally{setLoadingMore(false);}};
   const card=(video:RelatedVideo,short:boolean)=>{
     const playing=playingId===video.id,embed=videoEmbedUrl(video),thumbnail=videoThumbnail(video);
     return <article key={video.id} className={`yt-video-card ${short?'yt-short-card':'yt-standard-card'}`}>
@@ -404,7 +404,7 @@ function VideoPage() {
       </div>
       <div className="yt-video-info">
         {video.creatorAvatarUrl?<img className="yt-channel-avatar" src={video.creatorAvatarUrl} alt="" loading="lazy"/>:<span className="yt-channel-avatar yt-avatar-fallback">{(video.creatorName||video.titleName||'R').slice(0,1).toUpperCase()}</span>}
-        <div className="yt-video-text"><h3>{video.videoTitle||video.titleName||'Related video'}</h3><p>{video.creatorName||'Ryko Collection'}</p><p>{video.titleName||'Ryko video catalogue'}</p>{video.actionUrl&&<a className="yt-related" href={video.actionUrl} target="_blank" rel="noopener noreferrer">{video.actionType==='read'?'View title':'Related link'} <ExternalLink size={11}/></a>}</div>
+        <div className="yt-video-text"><h3>{(video.videoTitle||video.titleName||'Related video').length>50?(video.videoTitle||video.titleName||'Related video').slice(0,47).trimEnd()+'…':video.videoTitle||video.titleName||'Related video'}</h3><p>{video.creatorName||'Ryko Collection'}</p><p>{video.titleName||'Ryko video catalogue'}</p>{video.actionUrl&&<a className="yt-related" href={video.actionUrl} target="_blank" rel="noopener noreferrer">{video.actionType==='read'?'View title':'Related link'} <ExternalLink size={11}/></a>}</div>
         <button className="yt-more" onClick={()=>setPlayingId(playing?null:video.id)} aria-label={playing?'Close player':'Play video'}>{playing?<X size={20}/>:<span>•••</span>}</button>
       </div>
     </article>;
