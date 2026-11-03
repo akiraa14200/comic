@@ -494,3 +494,24 @@ body{padding-bottom:104px}
  .yt-disclaimer{padding:0 4%}
 }
 @media(min-width:1000px){.yt-video-feed{grid-template-columns:repeat(3,minmax(0,1fr));gap:32px 20px}}
+
+
+/* Website-matched video format and category controls */
+.yt-category-bar{display:flex;gap:8px;overflow-x:auto;padding:2px 0 13px;scrollbar-width:none}
+.yt-category-bar::-webkit-scrollbar{display:none}
+.yt-category-bar button{flex:none;padding:7px 12px;border:1px solid #34343a;border-radius:8px;background:#19191d;color:#c9c9ce;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
+.yt-category-bar button.active{border-color:#f04452;background:rgba(240,68,82,.16);color:#fff}
+.yt-shorts-row{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(145px,185px);gap:14px;overflow-x:auto;padding:2px 2px 14px;scroll-snap-type:x proximity;overscroll-behavior-x:contain;scrollbar-width:thin}
+.yt-shorts-row .yt-video-card{scroll-snap-align:start}
+.yt-shorts-row .yt-thumbnail{aspect-ratio:9/16;border-radius:12px}
+.yt-shorts-row .yt-video-info{display:block;padding:9px 2px}
+.yt-shorts-row .yt-channel-avatar{width:27px;height:27px;display:inline-block;vertical-align:middle;margin-right:7px}
+.yt-shorts-row .yt-video-text{display:inline-block;vertical-align:middle;width:calc(100% - 40px)}
+.yt-shorts-row .yt-video-text h3{font-size:12px}
+.yt-shorts-row .yt-video-text p{font-size:10px}
+.yt-shorts-row .yt-more{display:none}
+@media(max-width:600px){
+ .yt-category-bar{padding:2px 4% 12px}
+ .yt-shorts-row{grid-auto-columns:minmax(145px,42vw);gap:11px;padding-left:4%;padding-right:4%}
+ .yt-video-feed{grid-template-columns:1fr}
+}
