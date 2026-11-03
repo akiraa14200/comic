@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Home as HomeIcon, UserRound, ChevronLeft, Download, Upload, FolderOpen, MoreVertical, Settings as SettingsIcon, Moon, Eye, RotateCw, Trash2, Palette, Github, HeartHandshake, Database, Bell } from 'lucide-react';
+import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, MessageCircle, Home as HomeIcon, UserRound, ChevronLeft, Download, Upload, FolderOpen, MoreVertical, Settings as SettingsIcon, Moon, Eye, RotateCw, Trash2, Palette, HeartHandshake, Database } from 'lucide-react';
 // The application UI and page components are defined below.
 import { applyLibraryBackup, isNativeAndroid, LibraryBackup, makeLibraryBackup, scheduleNativeLibraryBackup } from './lib/libraryBackup';
 import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getSeasonal, getTrending, getVideoCatalogue, imageOf, searchAnime, titleOf } from './lib/anilist';
@@ -84,7 +84,7 @@ function Home({ mode }: { mode: CatalogueMode }) {
   const featured = trending.slice(0, 5);
   const hero = featured[heroIndex] || trending[0];
   useEffect(() => {
-    if (featured.length < 2 || readStore('rykoc-auto-carousel', true) === false) return;
+    if (featured.length < 2 || readStore<boolean>('rykoc-auto-carousel', true) === false) return;
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         setHeroIndex(index => (index + 1) % featured.length);
@@ -517,7 +517,7 @@ function SettingsPage({ mode, onModeChange }: { mode: CatalogueMode; onModeChang
       <div className="settings-row"><span className="settings-row-icon"><Moon/></span><span className="settings-row-copy"><strong>Reduce motion</strong><small>Reduce animated transitions and movement.</small></span><button className={reduceMotion?'settings-switch active':'settings-switch'} role="switch" aria-checked={reduceMotion} onClick={()=>setReduceMotion(value=>!value)}><span/></button></div>
     </section>
     <section className="settings-group"><div className="settings-group-heading"><Database/><div><h2>Local data</h2><p>Manage temporary data without deleting your library.</p></div></div>
-      <div className="settings-row"><span className="settings-row-icon"><History/></span><span className="settings-row-copy"><strong>Recent search history</strong><small>Remove saved search suggestions from this device.</small></span><button className="settings-action" onClick={clearSearchHistory}>Clear</button></div>
+      <div className="settings-row"><span className="settings-row-icon"><Clock3/></span><span className="settings-row-copy"><strong>Recent search history</strong><small>Remove saved search suggestions from this device.</small></span><button className="settings-action" onClick={clearSearchHistory}>Clear</button></div>
       <div className="settings-row"><span className="settings-row-icon"><Trash2/></span><span className="settings-row-copy"><strong>Catalogue cache</strong><small>Clear cached AniList metadata. It will reload when you browse online.</small></span><button className="settings-action" onClick={clearMetadataCache}>Clear cache</button></div>
       <div className="settings-row"><span className="settings-row-icon"><ShieldCheck/></span><span className="settings-row-copy"><strong>Privacy & backup</strong><small>Review privacy information and protect your personal library.</small></span><Link className="settings-action" to="/privacy">Open</Link></div>
     </section>
