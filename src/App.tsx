@@ -155,7 +155,45 @@ function SearchPage({ mode }: { mode: CatalogueMode }) {
       <div className="empty-state"><Search size={28}/><h3>No {mode} found</h3><p>Try another title or choose a different filter.</p></div>}
   </main>;
 }
-function DetailPage({ user, mode }: { user: User | null; mode: CatalogueMode }) {
+
+function CharacterDetails({ character, role }: { character: AnimeCharacter; role: string }) {
+  const raw = character.description || '';
+  const decoded = cleanDescription(raw);
+  const markers = [...decoded.matchAll(/(?:^|\\s)__([^_\\n:]{1,32}):__\\s*/g)];
+  const facts: { label: string; value: string }[] = [];
+  let biography = decoded;
+  if (markers.length) {
+    const first = markers[0].index || 0;
+    const prefix = decoded.slice(0, first).trim();
+    const chunks = markers.map((match, index) => {
+      const start = (match.index || 0) + match[0].length;
+      const end = index + 1 < markers.length ? (markers[index + 1].index || decoded.length) : decoded.length;
+      return { label: match[1].trim(), value: decoded.slice(start, end).trim() };
+    });
+    chunks.forEach((chunk, index) => {
+      const next = chunks[index + 1];
+      const sentenceEnd = chunk.value.search(/(?<=[.!?])\\s+(?=[A-Z])/);
+      const value = next || sentenceEnd < 0 ? chunk.value : chunk.value.slice(0, sentenceEnd);
+      if (value) facts.push({ label: chunk.label, value: value.trim() });
+      if (!next && sentenceEnd >= 0) biography = [prefix, chunk.value.slice(sentenceEnd + 1)].filter(Boolean).join(' ');
+    });
+    if (nextChunkOnlyFacts(facts, chunks)) biography = prefix;
+    if (!biography || biography === decoded) biography = prefix;
+  }
+  if (character.gender) facts.push({ label: 'Gender', value: character.gender });
+  if (character.age) facts.push({ label: 'Age', value: character.age });
+  if (character.dateOfBirth && !facts.some(f => /birthday|birth|born/i.test(f.label))) facts.push({ label: 'Birthday', value: [character.dateOfBirth.month, character.dateOfBirth.day].filter(Boolean).join('/') || 'Not listed' });
+  if (character.favourites) facts.push({ label: 'Favorites', value: character.favourites.toLocaleString() });
+  const paragraphs = (biography || decoded).split(/\\n{2,}/).map(part => part.trim()).filter(Boolean);
+  return <div className="character-details">
+    <div className="character-role-line"><span>ROLE</span><strong>{role}</strong></div>
+    {facts.length > 0 && <section className="character-detail-group"><h3>Quick details</h3><div className="character-facts">{facts.map((fact,index)=><span key={index}><strong>{fact.label}</strong>{fact.value}</span>)}</div></section>}
+    {paragraphs.length > 0 && <section className="character-detail-group"><h3>Biography</h3><div className="character-bio">{paragraphs.map((paragraph,index)=><p key={index}>{paragraph}</p>)}</div></section>}
+    {!decoded && <div className="character-bio">No biography is available for this character yet.</div>}
+  </div>;
+}
+function nextChunkOnlyFacts(facts: {label:string;value:string}[], chunks: {label:string;value:string}[]) { return facts.length === chunks.length && chunks.length > 0; }
+\nfunction DetailPage({ user, mode }: { user: User | null; mode: CatalogueMode }) {
   const { id } = useParams();
   const [anime, setAnime] = useState<Anime | null>(null);
   const [loading, setLoading] = useState(true);
@@ -271,8 +309,7 @@ function DetailPage({ user, mode }: { user: User | null; mode: CatalogueMode }) 
           <section className="character-modal" role="dialog" aria-modal="true" aria-label={selectedCharacter.name.full || 'Character details'} onClick={event=>event.stopPropagation()}>
             <button className="character-modal-close" onClick={()=>setSelectedCharacter(null)} aria-label="Close character details"><X size={18}/></button>
             <div className="character-modal-top"><img src={selectedCharacter.image?.large || selectedCharacter.image?.medium || ''} alt={selectedCharacter.name.full || 'Character'} onError={event=>{event.currentTarget.style.visibility='hidden';}}/><div><span className="eyebrow">CHARACTER PROFILE</span><h2>{selectedCharacter.name.full || 'Unknown character'}</h2>{selectedCharacter.name.native && <p>{selectedCharacter.name.native}</p>}<span className="character-role">{anime.characters?.edges.find(edge=>edge.node.id===selectedCharacter.id)?.role || 'Character'}</span></div></div>
-            <div className="character-facts">{selectedCharacter.gender && <span><strong>Gender</strong>{selectedCharacter.gender}</span>}{selectedCharacter.age && <span><strong>Age</strong>{selectedCharacter.age}</span>}{selectedCharacter.dateOfBirth && <span><strong>Birthday</strong>{[selectedCharacter.dateOfBirth.month,selectedCharacter.dateOfBirth.day].filter(Boolean).join('/') || 'Not listed'}</span>}{selectedCharacter.favourites ? <span><strong>Favorites</strong>{selectedCharacter.favourites.toLocaleString()}</span> : null}</div>
-            <div className="character-bio">{cleanDescription(selectedCharacter.description) || 'No biography is available for this character yet.'}</div>
+            <CharacterDetails character={selectedCharacter} role={anime.characters?.edges.find(edge=>edge.node.id===selectedCharacter.id)?.role || 'Character'}/>
             {selectedCharacter.siteUrl && <a className="secondary-btn" href={selectedCharacter.siteUrl} target="_blank" rel="noreferrer">Full character profile <ExternalLink size={14}/></a>}
           </section>
         </div>}
