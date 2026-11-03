@@ -129,16 +129,56 @@ export function ExtensionPage() {
         }
         const response = await fetch(target, { headers: { Accept: 'application/json' }, cache: 'no-store' });
         if (!response.ok) { lastError = 'Repository returned HTTP ' + response.status + ' for ' + new URL(target).pathname; continue; }
-        const data = await response.json() as { name?: string; extensions?: ExtensionEntry[] };
-        if (!Array.isArray(data.extensions)) { lastError = 'Invalid JSON index: expected an extensions array.'; continue; }
+        const data = await response.json() as unknown;
         const ids = new Set<string>();
-        const valid = data.extensions.filter(item => {
-          if (!item || typeof item.id !== 'string' || typeof item.name !== 'string' || typeof item.version !== 'string' || ids.has(item.id) || item.nsfw) return false;
-          ids.add(item.id);
-          if (item.type === 'apk') return typeof item.apk === 'string' && safeHttps(resolveUrl(target, item.apk));
-          return item.type === 'web' && typeof item.manifest === 'string' && safeHttps(resolveUrl(target, item.manifest));
-        }).map(item => ({...item, manifest: item.manifest ? resolveUrl(target,item.manifest) : undefined, apk: item.apk ? resolveUrl(target,item.apk) : undefined}));
-        return { id: base, url: base, name: data.name || new URL(base).host, extensions: valid, updatedAt: Date.now(), format: 'JSON' };
+        const legacyItems = Array.isArray(data) ? data : null;
+        const modernItems = !Array.isArray(data) && data && typeof data === 'object'
+          ? ((data as { extensions?: unknown; extensionList?: { extensions?: unknown } }).extensions
+            ?? (data as { extensionList?: { extensions?: unknown } }).extensionList?.extensions)
+          : null;
+        const rawItems = legacyItems ?? (Array.isArray(modernItems) ? modernItems : null);
+        if (!rawItems) {
+          const repoMetadata = data && typeof data === 'object' ? data as { index_v2?: unknown; meta?: { name?: string } } : null;
+          if (typeof repoMetadata?.index_v2 === 'string' && safeHttps(repoMetadata.index_v2)) {
+            const decoded = decodeKeiyoushiIndex(await fetchBytes(repoMetadata.index_v2), base);
+            if (!decoded.extensions.length) throw new Error('Repository metadata was valid, but its index contains no supported non-restricted extensions.');
+            return { id: base, url: base, name: repoMetadata.meta?.name || decoded.name, extensions: decoded.extensions, updatedAt: Date.now(), format: 'Repository metadata → Protocol Buffers' };
+          }
+          lastError = 'Unsupported repository JSON: expected an extension array or a Mihon extension-list object.';
+          continue;
+        }
+        const valid = rawItems.map((raw): ExtensionEntry | null => {
+          if (!raw || typeof raw !== 'object') return null;
+          const item = raw as {
+            id?: string; pkg?: string; packageName?: string; name?: string; version?: string;
+            apk?: string; lang?: string; nsfw?: number | boolean; sources?: Array<{name?:string;lang?:string}>;
+            icon?: string; iconUrl?: string; description?: string; type?: string; manifest?: string;
+          };
+          const id = item.id || item.pkg || item.packageName;
+          if (!id || !item.name || !item.version || ids.has(id)) return null;
+          ids.add(id);
+          const restricted = item.nsfw === true || (typeof item.nsfw === 'number' && item.nsfw > 0);
+          if (restricted) return null;
+          const apkUrl = item.apk ? (/^https:\/\//i.test(item.apk) ? item.apk : resolveUrl(base, 'apk/' + item.apk.replace(/^\/+/, ''))) : '';
+          const iconUrl = item.iconUrl || item.icon || resolveUrl(base, 'icon/' + id + '.png');
+          if (item.apk) {
+            if (!safeHttps(apkUrl)) return null;
+            const sourceList = Array.isArray(item.sources) ? item.sources : [];
+            const langs = [...new Set(sourceList.map(source => source?.lang).filter((value): value is string => Boolean(value)))];
+            return {
+              id, packageName: id, name: item.name.replace(/^Tachiyomi:\\s*/, ''), version,
+              type: 'apk', apk: apkUrl, icon: safeHttps(iconUrl) ? iconUrl : undefined,
+              lang: item.lang || (langs.length === 1 ? langs[0] : langs.length ? 'multiple' : 'unknown'),
+              sourceCount: sourceList.length, repoFormat: 'json',
+              description: item.description || (sourceList.length ? sourceList.length + ' source(s)' : 'Android source extension'),
+            };
+          }
+          if (item.type === 'web' && item.manifest && safeHttps(resolveUrl(target, item.manifest))) {
+            return { id, name: item.name, version: item.version, type: 'web', manifest: resolveUrl(target, item.manifest), lang: item.lang || 'unknown', description: item.description, repoFormat: 'json' };
+          }
+          return null;
+        }).filter((item): item is ExtensionEntry => Boolean(item));
+        return { id: base, url: base, name: (data && !Array.isArray(data) && typeof data === 'object' ? (data as { name?: string; meta?: { name?: string } }).name || (data as { meta?: { name?: string } }).meta?.name : undefined) || new URL(base).host, extensions: valid, updatedAt: Date.now(), format: legacyItems ? 'Legacy JSON index' : 'Mihon JSON index' };
       } catch (error) {
         lastError = error instanceof Error ? error.message : 'Could not read repository index.';
         if (/Failed to fetch|NetworkError|Load failed/i.test(lastError)) lastError = 'Could not reach the repository from this browser. The host may block CORS requests.';
