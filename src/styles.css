@@ -203,3 +203,47 @@
  .entry-details-grid{grid-template-columns:1fr;gap:0}
  .entry-details-grid .detail-wide{grid-column:auto}
 }
+
+
+/* Persistent five-section app navigation */
+.bottom-navigation{position:fixed;z-index:900;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(560px,calc(100% - 28px));display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:8px;border:1px solid #ffffff20;border-radius:19px;background:rgba(15,16,25,.88);backdrop-filter:blur(24px) saturate(150%);-webkit-backdrop-filter:blur(24px) saturate(150%);box-shadow:0 15px 55px #0009}
+.bottom-nav-item{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px 3px;border-radius:12px;color:#8c899b;text-decoration:none;font-size:10px;font-weight:650;transition:background .2s,color .2s}
+.bottom-nav-item.active{color:#d0c5ff;background:#a99bff18}
+.bottom-nav-item svg{flex:none}
+.footer{padding-bottom:115px}
+.hero-carousel-controls{display:flex;align-items:center;gap:8px;margin-top:15px}
+.hero-carousel-controls button{width:27px;height:27px;display:grid;place-items:center;border:1px solid #ffffff24;border-radius:50%;background:#ffffff0b;color:#c9c3d8}
+.hero-carousel-controls button.active:not(:first-child):not(:last-child){width:20px;height:7px;border:0;border-radius:10px;background:#b9aaff}
+.hero-carousel-controls button:not(:first-child):not(:last-child){width:7px;height:7px;border:0;border-radius:10px;background:#ffffff45;padding:0}
+.hero-carousel-controls button.active:not(:first-child):not(:last-child){width:20px;background:#b9aaff}
+.library-group{margin-top:34px}
+.library-empty{padding:17px 0;color:#777687;font-size:12px}
+.card-meta select{width:100%;margin-top:8px;padding:8px 9px;border:1px solid #ffffff18;border-radius:8px;background:#151722;color:#d9d5e5;font-size:11px}
+.library-remove{margin-top:7px;padding:5px 0;border:0;background:none;color:#a69cff;font-size:10px;text-align:left}
+.video-search-tools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;margin:25px 0 20px}
+.video-search-tools .large-search{display:flex;align-items:center;gap:12px;min-width:0;padding:0 15px;border:1px solid var(--line);border-radius:11px;background:#ffffff08;color:#a99bff}
+.video-search-tools input{width:100%;min-width:0;padding:14px 0;border:0;outline:0;background:transparent;color:#f4f1fb;font:inherit;font-size:12px}
+.video-search-tools .genre-select{display:flex;align-items:center;gap:8px;padding:0 12px;border:1px solid var(--line);border-radius:11px;background:#ffffff08;color:#a99bff}
+.video-search-tools select{max-width:140px;padding:13px 0;border:0;outline:0;background:transparent;color:#e8e4f1;font-size:11px}
+.account-card{display:flex;align-items:center;gap:20px;width:min(100%,620px);margin:20px auto;padding:25px;border:1px solid #ffffff18;border-radius:17px;background:#11131c}
+.account-avatar{width:64px;height:64px;flex:none;display:grid;place-items:center;border-radius:50%;background:#a99bff20;color:#c9beff;font-size:25px;font-weight:800}
+.account-card h2{margin:7px 0;color:#f1eef9;font:800 20px Manrope}
+.account-card p{color:#9290a0;font-size:12px;overflow-wrap:anywhere}
+.account-form{display:flex;flex-direction:column;align-items:stretch;max-width:430px}
+.account-form .account-avatar{align-self:center}
+.account-form h2,.account-form>p{text-align:center}
+.account-form input{width:100%;padding:13px 14px;border:1px solid #ffffff1c;border-radius:9px;background:#090b12;color:#f4f1fb;outline:0}
+.account-form .primary-btn{justify-content:center}
+.account-switch{border:0;background:none;color:#b8adff;font-size:11px;padding:8px}
+.account-message{padding:10px;border-radius:8px;background:#ffffff08;text-align:center}
+@media(max-width:700px){
+ .bottom-navigation{bottom:max(8px,env(safe-area-inset-bottom));width:calc(100% - 20px);padding:6px;border-radius:16px}
+ .bottom-nav-item{padding:7px 2px;font-size:9px;gap:3px}
+ .bottom-nav-item svg{width:18px;height:18px}
+ body{padding-bottom:82px}
+ .footer{padding-bottom:115px}
+ .video-search-tools{grid-template-columns:1fr}
+ .video-search-tools .genre-select{min-height:43px}
+ .video-search-tools select{max-width:none;flex:1}
+ .account-card{padding:18px;gap:13px}
+}
