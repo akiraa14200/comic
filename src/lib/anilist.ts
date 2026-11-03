@@ -72,8 +72,8 @@ const detailFields = `
 type AniListResponse<T> = { data?: T; errors?: { message?: string }[] };
 const memoryCache = new Map<string, { expires: number; value: unknown }>();
 const inFlightRequests = new Map<string, Promise<unknown>>();
-const CACHE_TTL = 5 * 60 * 1000;
-const DETAIL_CACHE_TTL = 15 * 60 * 1000;
+const CACHE_TTL = 10 * 60 * 1000;
+const DETAIL_CACHE_TTL = 30 * 60 * 1000;
 
 async function queryUncached<T>(queryText: string, variables: Record<string, unknown> = {}, cacheTtl = CACHE_TTL): Promise<T> {
   const cacheKey = JSON.stringify([queryText, variables]);
@@ -81,9 +81,9 @@ async function queryUncached<T>(queryText: string, variables: Record<string, unk
   if (cached && cached.expires > Date.now()) return cached.value as T;
 
   let lastError: Error = new Error('Anime catalogue is temporarily unavailable.');
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 12000);
+    const timeout = window.setTimeout(() => controller.abort(), 8000);
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -123,6 +123,10 @@ async function queryUncached<T>(queryText: string, variables: Record<string, unk
       }
       if (payload.data) {
         memoryCache.set(cacheKey, { expires: Date.now() + cacheTtl, value: payload.data });
+        if (memoryCache.size > 200) {
+          const oldestKey = memoryCache.keys().next().value;
+          if (oldestKey) memoryCache.delete(oldestKey);
+        }
         return payload.data;
       }
       lastError = new Error(payload.errors?.map(error => error.message).filter(Boolean).join(' · ') || 'AniList returned an incomplete response.');
