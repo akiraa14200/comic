@@ -150,7 +150,7 @@ const mapAniListMedia = (item: import('./anilist').Anime): Anime => {
     ? item.format === 'NOVEL' ? 'Light Novel' : item.countryOfOrigin === 'KR' ? 'Manhwa' : item.countryOfOrigin === 'CN' ? 'Manhua' : 'Manga'
     : item.format === 'MOVIE' ? 'Movie' : item.format === 'TV' ? 'TV Series' : item.format || 'Anime';
   return {
-    id: `anilist-${item.id}`,
+    id: `anilist-${manga ? 'm' : 'a'}-${item.id}`,
     anilistId: item.id,
     title: item.title || {},
     description: item.description || '',
@@ -272,12 +272,10 @@ export async function searchAnime(search: string, page = 1, genre?: string, stat
   const mediaType: 'ANIME' | 'MANGA' | undefined =
     ['Manga','Manhwa','Manhua','Light Novel','Web Novel'].includes(format || '') ? 'MANGA' :
     ['Anime','Movie','TV Series'].includes(format || '') ? 'ANIME' : undefined;
+  const country = format === 'Manhwa' ? 'KR' : format === 'Manhua' ? 'CN' : undefined;
   const apiFormat = format === 'Movie' ? 'MOVIE' : format === 'TV Series' ? 'TV' : format === 'Light Novel' || format === 'Web Novel' ? 'NOVEL' : undefined;
-  const results = await searchMedia(search, page, genre, status, apiFormat, mediaType);
+  const results = await searchMedia(search, page, genre, status, apiFormat, mediaType, country);
   let mapped = results.map(mapAniListMedia);
-  if (format === 'Manhwa') mapped = mapped.filter(item => item.countryOfOrigin === 'KR');
-  if (format === 'Manhua') mapped = mapped.filter(item => item.countryOfOrigin === 'CN');
-  if (format === 'Manga') mapped = mapped.filter(item => item.format === 'Manga');
   return mapped;
 }
 const isMangaTitle = (format = '') => /manga|manhwa|manhua|webtoon|comic/i.test(format);
@@ -287,14 +285,12 @@ const emptyCharacters = (page = 1): NonNullable<Anime['characters']> => ({
 
 export async function getAnime(id: string): Promise<Anime | null> {
   if (!id) return null;
-  if (id.startsWith('anilist-')) {
-    const numericId = Number(id.slice('anilist-'.length));
+  if (id.startsWith('anilist-a-') || id.startsWith('anilist-m-')) {
+    const mediaType = id.startsWith('anilist-m-') ? 'MANGA' : 'ANIME';
+    const numericId = Number(id.slice('anilist-a-'.length));
+    const mangaId = Number(id.slice('anilist-m-'.length));
     return cached(`detail:${id}`, async () => {
-      const [anime, manga] = await Promise.all([
-        getAniListMediaById(numericId, 'ANIME').catch(() => null),
-        getAniListMediaById(numericId, 'MANGA').catch(() => null)
-      ]);
-      const result = anime || manga;
+      const result = await getAniListMediaById(mediaType === 'MANGA' ? mangaId : numericId, mediaType);
       return result ? mapAniListMedia(result) : null;
     });
   }
