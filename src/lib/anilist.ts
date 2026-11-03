@@ -207,16 +207,42 @@ export async function getAnime(id: number): Promise<Anime | null> {
   return data.Media || null;
 }
 
-export async function getAnimeCharacters(id: number, page: number): Promise<NonNullable<Anime['characters']>> {
+export async function getMediaCharacters(
+  id: number,
+  page = 1,
+  mediaType: 'ANIME' | 'MANGA' = 'ANIME'
+): Promise<NonNullable<Anime['characters']>> {
+  if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(page) || page < 1) {
+    return { pageInfo: { currentPage: Math.max(1, page || 1), hasNextPage: false }, edges: [] };
+  }
   const data = await query<{ Media: { characters: NonNullable<Anime['characters']> } | null }>(
-    `query($id: Int, $page: Int) { Media(id: $id, type: ANIME) { characters(page: $page, perPage: 50, sort: ROLE) {
-      pageInfo { currentPage hasNextPage }
-      edges { role node { id name { full native alternative } image { large medium } description(asHtml: false) gender age dateOfBirth { year month day } siteUrl favourites } }
-    } } }`,
-    { id, page },
+    `query($id: Int!, $page: Int!, $type: MediaType!) {
+      Media(id: $id, type: $type) {
+        characters(page: $page, perPage: 30, sort: ROLE) {
+          pageInfo { currentPage hasNextPage }
+          edges {
+            role
+            node {
+              id name { full native alternative } image { large medium }
+              description(asHtml: false) gender age dateOfBirth { year month day }
+              siteUrl favourites
+            }
+          }
+        }
+      }
+    }`,
+    { id, page, type: mediaType },
     DETAIL_CACHE_TTL
   );
   return data.Media?.characters || { pageInfo: { currentPage: page, hasNextPage: false }, edges: [] };
+}
+
+export async function getAnimeCharacters(id: number, page: number): Promise<NonNullable<Anime['characters']>> {
+  return getMediaCharacters(id, page, 'ANIME');
+}
+
+export async function getMangaCharacters(id: number, page = 1): Promise<NonNullable<Anime['characters']>> {
+  return getMediaCharacters(id, page, 'MANGA');
 }
 
 export const titleOf = (anime: Anime) => anime.title?.english || anime.title?.romaji || anime.title?.native || 'Untitled anime';
