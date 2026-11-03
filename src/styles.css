@@ -297,3 +297,46 @@ body{padding-bottom:104px}
 .video-external-search a{display:inline-flex;align-items:center;gap:6px;color:#c4baff;text-decoration:none}
 .video-external-search a:hover{text-decoration:underline}
 @media(max-width:420px){.video-external-search{align-items:flex-start;flex-direction:column;gap:7px}}
+
+
+/* Featured Home carousel: true 16:9 AniList banner artwork. */
+.hero{width:100%;height:auto;aspect-ratio:16/9;min-height:0;margin:24px 0 48px;display:flex;align-items:center;isolation:isolate;background:#10111a;position:relative}
+.hero-banner-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:-2}
+.hero:before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(5,6,11,.94) 0%,rgba(5,6,11,.78) 36%,rgba(5,6,11,.12) 100%),linear-gradient(0deg,rgba(5,6,11,.6),transparent 55%)}
+.hero-copy{width:58%;max-width:680px;padding:clamp(20px,4.5vw,58px)}
+.hero h1{font-size:clamp(27px,4.4vw,58px);margin:clamp(10px,2vw,23px) 0 10px}
+.hero-copy>p{font-size:clamp(10px,1.1vw,14px);line-height:1.55;max-width:390px;margin:0}
+.hero-actions{margin-top:clamp(10px,2vw,24px);gap:8px}
+.hero-actions .primary-btn,.hero-actions .secondary-btn{padding:10px 13px;font-size:11px}
+.hero-featured{margin-top:clamp(10px,2vw,25px);gap:4px}
+.hero-carousel-controls{margin-top:10px}
+.hero-carousel-controls button{cursor:pointer}
+@media(max-width:700px){
+ .hero{aspect-ratio:16/9;margin:16px 0 32px;border-radius:16px}
+ .hero-banner-image{object-position:center}
+ .hero:before{background:linear-gradient(90deg,rgba(5,6,11,.9) 0%,rgba(5,6,11,.68) 53%,rgba(5,6,11,.08) 100%),linear-gradient(0deg,rgba(5,6,11,.65),transparent 60%)}
+ .hero-copy{width:72%;max-width:none;padding:12px 13px}
+ .hero .eyebrow{font-size:7px;letter-spacing:.1em;gap:4px}
+ .hero .eyebrow svg{width:10px;height:10px}
+ .hero h1{font-size:clamp(17px,5.2vw,27px);line-height:1.05;letter-spacing:-.04em;margin:8px 0 6px}
+ .hero-copy>p{font-size:9px;line-height:1.35;max-width:240px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+ .hero-actions{margin-top:9px;gap:6px}
+ .hero-actions .primary-btn,.hero-actions .secondary-btn{font-size:8px;padding:7px 8px;border-radius:7px;gap:4px}
+ .hero-actions svg{width:11px;height:11px}
+ .hero-featured{margin-top:8px;gap:3px}
+ .hero-featured span{font-size:7px;letter-spacing:.08em}
+ .hero-featured strong{font-size:9px;max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .hero-carousel-controls{margin-top:6px;gap:5px}
+ .hero-carousel-controls button{width:21px;height:21px}
+ .hero-carousel-controls button svg{width:12px;height:12px}
+ .hero-carousel-controls button:not(:first-child):not(:last-child){width:5px;height:5px}
+ .hero-carousel-controls button.active:not(:first-child):not(:last-child){width:14px;height:5px}
+}
+@media(max-width:380px){
+ .hero-copy{width:78%;padding:9px 10px}
+ .hero-copy>p{font-size:8px}
+ .hero-actions .secondary-btn{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+ .hero-carousel-controls button{transition:none}
+}
