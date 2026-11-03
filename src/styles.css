@@ -340,3 +340,10 @@ body{padding-bottom:104px}
 @media(prefers-reduced-motion:reduce){
  .hero-carousel-controls button{transition:none}
 }
+
+
+/* Catalogue mode switch */
+.mode-switch{display:inline-flex;align-items:center;gap:3px;padding:4px;border:1px solid #ffffff1c;border-radius:999px;background:#ffffff08;color:#a8a5b4;cursor:pointer;font:inherit;font-size:11px;white-space:nowrap}
+.mode-switch span{padding:7px 11px;border-radius:999px;transition:background .2s,color .2s}
+.mode-switch .mode-active{background:#d8ceff;color:#171421;font-weight:700}
+@media(max-width:700px){.mode-switch{order:2;margin-left:auto}.mode-switch span{padding:6px 9px}.nav-wrap{gap:9px}}
