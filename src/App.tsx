@@ -511,6 +511,14 @@ export default function App() {
     });
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
+  useEffect(() => {
+    let active = true;
+    if (!user) { setIsAdmin(false); return; }
+    supabase.from('admin_users').select('user_id').eq('user_id', user.id).maybeSingle().then(({ data, error }) => {
+      if (active) setIsAdmin(!error && !!data);
+    });
+    return () => { active = false; };
+  }, [user]);
   const signOut = () => { void supabase.auth.signOut(); };
-  return <><Header user={user} onSignOut={signOut}/><Routes><Route path="/" element={<Home/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/anime/:id" element={<DetailPage user={user}/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="/extensions" element={<ExtensionPage/>}/><Route path="/admin" element={<AdminWorkspace/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer></>;
+  return <><Header user={user} isAdmin={isAdmin} onSignOut={signOut}/><Routes><Route path="/" element={<Home/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/anime/:id" element={<DetailPage user={user}/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="/extensions" element={<ExtensionPage/>}/><Route path="/admin" element={<AdminWorkspace/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer></>;
 }
