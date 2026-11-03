@@ -33,7 +33,7 @@ function Header({ user, onSignOut }: { user: User | null; onSignOut: () => void 
 function AnimeCard({ anime, onSave, saved }: { anime: Anime; onSave: (anime: Anime) => void; saved: boolean }) {
   return <article className="anime-card">
     <Link to={`/anime/${anime.id}`} className="poster-wrap">
-      <img src={imageOf(anime)} alt={titleOf(anime)} loading="lazy"/>
+      <img src={imageOf(anime)} alt={titleOf(anime)} loading="lazy" decoding="async"/>
       <span className="poster-format">{anime.format || 'ANIME'}</span>
       {anime.averageScore ? <span className="poster-score"><Star size={12} fill="currentColor"/> {(anime.averageScore / 10).toFixed(1)}</span> : null}
     </Link>
@@ -117,7 +117,7 @@ function SearchPage() {
   }, [term, genre, status, format]);
   const genres = ['Action','Adventure','Comedy','Drama','Fantasy','Horror','Mystery','Romance','Sci-Fi','Slice of Life','Sports','Supernatural'];
   return <main className="content-page"><div className="page-heading"><span className="eyebrow">THE ANIME CATALOGUE</span><h1>Explore <em>anime.</em></h1><p>Search for a favorite or let a new story find you.</p></div>
-    <div className="filter-bar"><div className="large-search"><Search/><input value={term} onChange={e => setTerm(e.target.value)} placeholder="Search titles, series, stories..." autoFocus/></div><label className="genre-select"><SlidersHorizontal size={16}/><select value={genre} onChange={e => setGenre(e.target.value)}><option value="">All genres</option>{genres.map(g => <option key={g}>{g}</option>)}</select></label><label className="genre-select"><select value={status} onChange={e=>setStatus(e.target.value)}><option value="">Any status</option><option value="RELEASING">Airing</option><option value="FINISHED">Finished</option><option value="NOT_YET_RELEASED">Upcoming</option><option value="HIATUS">Hiatus</option></select></label><label className="genre-select"><select value={format} onChange={e=>setFormat(e.target.value)}><option value="">Any format</option><option value="TV">TV</option><option value="TV_SHORT">TV Short</option><option value="MOVIE">Movie</option><option value="OVA">OVA</option><option value="ONA">ONA</option><option value="SPECIAL">Special</option></select></label></div>
+    <div className="filter-bar browse-filters"><label className="large-search"><Search/><input<Search/><input value={term} onChange={e => setTerm(e.target.value)} placeholder="Search titles, series, stories..." autoComplete="off"/></div><label className="genre-select"><SlidersHorizontal size={16}/><select value={genre} onChange={e => setGenre(e.target.value)}><option value="">All genres</option>{genres.map(g => <option key={g}>{g}</option>)}</select></label><label className="genre-select"><select value={status} onChange={e=>setStatus(e.target.value)}><option value="">Any status</option><option value="RELEASING">Airing</option><option value="FINISHED">Finished</option><option value="NOT_YET_RELEASED">Upcoming</option><option value="HIATUS">Hiatus</option></select></label><label className="genre-select"><select value={format} onChange={e=>setFormat(e.target.value)}><option value="">Any format</option><option value="TV">TV</option><option value="TV_SHORT">TV Short</option><option value="MOVIE">Movie</option><option value="OVA">OVA</option><option value="ONA">ONA</option><option value="SPECIAL">Special</option></select></label></div>
     <div className="results-caption">{busy ? 'Searching catalogue…' : `${items.length} results shown`}{term && <span> for “{term}”</span>}</div>
     {error && <div className="notice">{error}</div>}
     {busy && !items.length ? <div className="anime-grid">{Array.from({length:8},(_,i)=><div className="skeleton-card" key={i}><div className="skeleton-poster"/><div className="skeleton-line"/></div>)}</div> :
@@ -285,27 +285,29 @@ function VideoPage() {
   const [videoTerm, setVideoTerm] = useState('');
   const [videoGenre, setVideoGenre] = useState('');
   const [videoSearching, setVideoSearching] = useState(false);
+  const [videoSearchingMore, setVideoSearchingMore] = useState(false);
+  const [videoPage, setVideoPage] = useState(1);
+  const [videoHasMore, setVideoHasMore] = useState(true);
   const [selected, setSelected] = useState<Anime | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const onlyWithTrailers = (items: Anime[]) => items.filter(item =>
+    item.trailer?.site?.toLowerCase() === 'youtube' &&
+    /^[a-zA-Z0-9_-]{6,}$/.test(item.trailer.id)
+  );
+
   useEffect(() => {
     let active = true;
-    Promise.all([getTrending(), getPopular(), getSeasonal()])
-      .then(groups => {
-        if (!active) return;
-        const seen = new Set<number>();
-        const clips = groups.flat().filter(anime => {
-          const id = anime.trailer?.id || '';
-          const valid = anime.trailer?.site?.toLowerCase() === 'youtube' && /^[a-zA-Z0-9_-]{6,}$/.test(id);
-          if (!valid || seen.has(anime.id)) return false;
-          seen.add(anime.id);
-          return true;
-        });
-        setVideos(clips);
-        setSelected(clips[0] || null);
-      })
-      .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime previews.'); })
+    setLoading(true);
+    getVideoCatalogue(1).then(items => {
+      if (!active) return;
+      const clips = onlyWithTrailers(items);
+      setVideos(clips);
+      setSelected(clips[0] || null);
+      setVideoPage(1);
+      setVideoHasMore(items.length === 50);
+    }).catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime previews.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
@@ -315,35 +317,65 @@ function VideoPage() {
     let active = true;
     const timer = window.setTimeout(() => {
       setVideoSearching(true);
-      searchAnime(videoTerm.trim(), 1, videoGenre || undefined).then(results => {
+      setError('');
+      const request = videoTerm.trim()
+        ? searchAnime(videoTerm.trim(), 1, videoGenre || undefined)
+        : getVideoCatalogue(1, videoGenre || undefined);
+      request.then(items => {
         if (!active) return;
-        const matches = results.filter(item => item.trailer?.site?.toLowerCase() === 'youtube' && /^[a-zA-Z0-9_-]{6,}$/.test(item.trailer.id));
-        setVideos(matches);
-        setSelected(matches[0] || null);
+        const clips = onlyWithTrailers(items);
+        setVideos(clips);
+        setSelected(clips[0] || null);
+        setVideoPage(1);
+        setVideoHasMore(items.length === 50);
       }).catch(e => { if (active) setError(e instanceof Error ? e.message : 'Video search failed.'); })
         .finally(() => { if (active) setVideoSearching(false); });
-    }, 400);
+    }, 450);
     return () => { active = false; window.clearTimeout(timer); };
   }, [videoTerm, videoGenre]);
+
+  const loadMoreVideos = async () => {
+    if (videoSearchingMore || !videoHasMore) return;
+    setVideoSearchingMore(true);
+    setError('');
+    const nextPage = videoPage + 1;
+    try {
+      const items = videoTerm.trim()
+        ? await searchAnime(videoTerm.trim(), nextPage, videoGenre || undefined)
+        : await getVideoCatalogue(nextPage, videoGenre || undefined);
+      const clips = onlyWithTrailers(items);
+      setVideos(old => {
+        const known = new Set(old.map(item => item.id));
+        return [...old, ...clips.filter(item => !known.has(item.id))];
+      });
+      setVideoPage(nextPage);
+      setVideoHasMore(items.length === 50);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load more trailers.');
+    } finally {
+      setVideoSearchingMore(false);
+    }
+  };
 
   const trailerId = selected?.trailer?.id;
   const videoGenres = ['Action','Adventure','Comedy','Drama','Fantasy','Horror','Mystery','Romance','Sci-Fi','Slice of Life','Sports','Supernatural'];
   return <main className="video-page">
     <div className="video-toolbar">
-      <div><span className="eyebrow">RYKOCCLLECTION VIDEO</span><h1>Anime <em>trailers.</em></h1><p>Watch promotional previews linked through AniList metadata and YouTube.</p></div>
+      <div><span className="eyebrow">RYKOCCLLECTION VIDEO</span><h1>Anime <em>trailers.</em></h1><p>Discover anime promotional videos from across the catalogue.</p></div>
       {selected?.siteUrl && <a className="secondary-btn" href={selected.siteUrl} target="_blank" rel="noopener noreferrer">Anime details <ExternalLink size={14}/></a>}
     </div>
-    <div className="video-search-tools"><label className="large-search"><Search/><input value={videoTerm} onChange={event=>setVideoTerm(event.target.value)} placeholder="Search anime to find related videos..."/></label><label className="genre-select"><SlidersHorizontal size={16}/><select value={videoGenre} onChange={event=>setVideoGenre(event.target.value)}><option value="">All genres</option>{videoGenres.map(value=><option key={value}>{value}</option>)}</select></label></div>
+    <div className="video-search-tools"><label className="large-search"><Search/><input value={videoTerm} onChange={event=>setVideoTerm(event.target.value)} placeholder="Search anime to find related videos..." autoComplete="off"/></label><label className="genre-select"><SlidersHorizontal size={16}/><select value={videoGenre} onChange={event=>setVideoGenre(event.target.value)}><option value="">All genres</option>{videoGenres.map(value=><option key={value}>{value}</option>)}</select></label></div>
     {error && <div className="notice">{error}</div>}
-    {loading || videoSearching ? <div className="video-loading">{videoSearching?'Searching related videos…':'Loading anime previews…'}</div> : selected && trailerId ? <section className="video-feature">
-      <div className="video-player-wrap"><iframe key={trailerId} src={`https://www.youtube-nocookie.com/embed/${trailerId}?rel=0`} title={`Trailer for ${titleOf(selected)}`} allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/></div>
+    {loading || videoSearching ? <div className="video-loading">Discovering trailers…</div> : selected && trailerId ? <section className="video-feature">
+      <div className="video-player-wrap"><iframe key={trailerId} src={`https://www.youtube-nocookie.com/embed/${trailerId}?rel=0`} title={`Trailer for ${titleOf(selected)}`} loading="lazy" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/></div>
       <div className="video-selected"><div><span className="eyebrow">NOW SELECTED</span><h2>{titleOf(selected)}</h2><p>{selected.seasonYear || 'Release year unavailable'} · {selected.format || 'Anime'} · {selected.episodes || 'Episode count unavailable'} episodes</p></div><a className="secondary-btn" href={`https://www.youtube.com/watch?v=${trailerId}`} target="_blank" rel="noopener noreferrer">Open on YouTube <ExternalLink size={14}/></a></div>
-    </section> : <div className="empty-state"><Play size={28}/><h3>No trailers available right now</h3><p>AniList has not returned supported YouTube trailer IDs for the current catalogue.</p><Link className="secondary-btn" to="/search">Explore anime</Link></div>}
-    {videos.length > 0 && <section className="section video-library"><div className="section-head"><div><h2>More previews</h2><p>Select a title to watch its trailer</p></div><span className="results-caption">{videos.length} trailers</span></div><div className="video-trailer-grid">{videos.map(anime => <button key={anime.id} className={selected?.id === anime.id ? 'video-trailer-card selected' : 'video-trailer-card'} onClick={() => { setSelected(anime); window.scrollTo({top: 0, behavior: 'smooth'}); }}><span className="video-trailer-image"><img src={imageOf(anime)} alt="" loading="lazy"/><span className="video-play-icon"><Play size={19} fill="currentColor"/></span></span><span className="video-trailer-title">{titleOf(anime)}</span><span className="video-trailer-meta">{anime.seasonYear || 'Year unknown'} · {anime.format || 'Anime'}</span></button>)}</div></section>}
-    <p className="fine-print">RykocCllection displays trailer metadata from AniList and embeds YouTube previews. These are promotional videos, not full episodes. Playback, availability, content ratings and advertisements are controlled by YouTube and the video publisher. RykocCllection does not host video files or extract streams.</p>
+    </section> : <div className="empty-state"><Play size={28}/><h3>No trailers found in this batch</h3><p>Try another title or load another batch of catalogue entries.</p></div>}
+    {videos.length > 0 && <section className="section video-library"><div className="section-head"><div><h2>More previews</h2><p>Choose a title to watch its trailer</p></div><span className="results-caption">{videos.length} trailers found</span></div><div className="video-trailer-grid">{videos.map(anime => <button key={anime.id} className={selected?.id === anime.id ? 'video-trailer-card selected' : 'video-trailer-card'} onClick={() => { setSelected(anime); window.scrollTo({top: 0, behavior: 'smooth'}); }}><span className="video-trailer-image"><img src={imageOf(anime)} alt="" loading="lazy" decoding="async"/><span className="video-play-icon"><Play size={19} fill="currentColor"/></span></span><span className="video-trailer-title">{titleOf(anime)}</span><span className="video-trailer-meta">{anime.seasonYear || 'Year unknown'} · {anime.format || 'Anime'}</span></button>)}</div></section>}
+    {!loading && videoHasMore && <div className="load-more-wrap"><button className="secondary-btn load-more-btn" onClick={loadMoreVideos} disabled={videoSearchingMore}>{videoSearchingMore?'Finding more trailers…':'Load more videos'}</button></div>}
+    {!loading && !videoHasMore && videos.length > 0 && <p className="fine-print">You have reached the end of the available AniList catalogue results for these filters.</p>}
+    <p className="fine-print">Trailer availability depends on AniList metadata and YouTube publishers. RykocCllection does not host full episodes or video files.</p>
   </main>;
 }
-
 function BottomNavigation() {
   const location = useLocation();
   const links = [
