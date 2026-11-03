@@ -330,7 +330,7 @@ function videoEmbedUrl(video: RelatedVideo) {
       if (!id || !/^[a-zA-Z0-9_-]{6,}$/.test(id)) return '';
       // Match the known-working AniList trailer player exactly. Avoid enablejsapi/origin
       // parameters here: this app only needs plain iframe playback, not the JS player API.
-      return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&playsinline=1&rel=0`;
+      return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1&rel=0`;
     }
 
     if (host === 'dai.ly' || host.endsWith('dailymotion.com')) {
