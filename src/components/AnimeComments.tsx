@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { User } from '@supabase/supabase-js';
-import { ArrowBigDown, ArrowBigUp, ChevronDown, ChevronUp, MessageSquare, Pencil, Send, Trash2 } from 'lucide-react';
+import { ArrowBigDown, ArrowBigUp, MessageSquare, Pencil, Send, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 type Profile = { username: string; display_name: string; avatar_url: string };
