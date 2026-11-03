@@ -9,7 +9,6 @@ export type AnimeCharacter = {
   siteUrl?: string;
   favourites?: number;
   role?: string;
-  voiceActors?: { id: number; name: { full?: string }; image?: { large?: string } }[];
 };
 
 export type AnimeStaff = { role: string; node: { name: { full?: string } } };
@@ -65,9 +64,6 @@ const detailFields = `
         id name { full native alternative } image { large medium }
         description(asHtml: false) gender age dateOfBirth { year month day }
         siteUrl favourites
-        voiceActors(language: JAPANESE, sort: RELEVANCE) {
-          id name { full } image { large }
-        }
       }
     }
   }
@@ -192,7 +188,7 @@ export async function getAnimeCharacters(id: number, page: number): Promise<NonN
   const data = await query<{ Media: { characters: NonNullable<Anime['characters']> } | null }>(
     `query($id: Int, $page: Int) { Media(id: $id, type: ANIME) { characters(page: $page, perPage: 50, sort: ROLE) {
       pageInfo { currentPage hasNextPage }
-      edges { role node { id name { full native alternative } image { large medium } description(asHtml: false) gender age dateOfBirth { year month day } siteUrl favourites voiceActors(language: JAPANESE, sort: RELEVANCE) { id name { full } image { large } } } }
+      edges { role node { id name { full native alternative } image { large medium } description(asHtml: false) gender age dateOfBirth { year month day } siteUrl favourites } }
     } } }`,
     { id, page },
     DETAIL_CACHE_TTL
