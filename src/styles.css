@@ -140,7 +140,7 @@
 .entry-panel{padding:26px 0 8px;min-height:260px}
 .entry-section-heading{margin-bottom:20px}
 .entry-section-heading h2{font:800 24px Manrope;letter-spacing:-.04em;margin:7px 0;color:#f1eef9}
-.entry-section-heading h2 small{font:600 11px inherit;color:#9e95d6;margin-left:6px}
+.entry-section-heading h2 small{font:inherit;font-size:11px;font-weight:600;color:#9e95d6;margin-left:6px}
 .entry-section-heading p{font-size:11px;color:#888693;margin:0}
 .overview-description{max-width:1000px;color:#c3bfce;font-size:13px;line-height:1.9;white-space:pre-line;overflow-wrap:anywhere}
 .overview-trailer{margin-top:35px}
