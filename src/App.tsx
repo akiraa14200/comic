@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Home as HomeIcon, UserRound, ChevronLeft } from 'lucide-react';
+import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, SlidersHorizontal, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Home as HomeIcon, UserRound, ChevronLeft, Download, Upload, FolderOpen } from 'lucide-react';
 // The application UI and page components are defined below.
 import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getSeasonal, getTrending, getVideoCatalogue, imageOf, searchAnime, titleOf } from './lib/anilist';
 import type { User } from '@supabase/supabase-js';
@@ -494,9 +494,47 @@ function AccountPage({ user }: { user: User | null }) {
 
 function PrivacyPage() {
   const [protection, setProtection] = useState(()=>readStore('kairo-privacy', true));
+  const [backupMessage, setBackupMessage] = useState('');
+  const [busy, setBusy] = useState(false);
   useEffect(()=>localStorage.setItem('kairo-privacy', JSON.stringify(protection)),[protection]);
+
+  const exportBackup = () => {
+    try {
+      const keys = ['kairo-watchlist','kairo-history','rykoc-library-status','rykoc-catalogue-mode'];
+      const data: Record<string, unknown> = {};
+      keys.forEach(key => { const raw = localStorage.getItem(key); if (raw !== null) data[key] = JSON.parse(raw); });
+      const backup = { app: 'RykocCllection', formatVersion: 1, createdAt: new Date().toISOString(), data };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `rykoccllection-backup-${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(anchor); anchor.click(); anchor.remove();
+      URL.revokeObjectURL(url);
+      setBackupMessage('Backup file created. Save it in a folder you can access after reinstalling.');
+    } catch { setBackupMessage('Could not create a backup. Please try again.'); }
+  };
+
+  const importBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setBusy(true); setBackupMessage('');
+    try {
+      if (file.size > 10 * 1024 * 1024) throw new Error('Backup file is too large (10 MB maximum).');
+      const parsed = JSON.parse(await file.text());
+      if (parsed?.app !== 'RykocCllection' || parsed?.formatVersion !== 1 || !parsed?.data || typeof parsed.data !== 'object') throw new Error('This is not a supported RykocCllection backup.');
+      const allowed = ['kairo-watchlist','kairo-history','rykoc-library-status','rykoc-catalogue-mode'];
+      allowed.forEach(key => { if (Object.prototype.hasOwnProperty.call(parsed.data, key)) localStorage.setItem(key, JSON.stringify(parsed.data[key])); });
+      setBackupMessage('Backup restored successfully. Reloading your library…');
+      window.setTimeout(() => window.location.reload(), 700);
+    } catch (error) {
+      setBackupMessage(error instanceof Error ? error.message : 'Could not restore this backup.');
+    } finally { setBusy(false); event.target.value = ''; }
+  };
+
   return <main className="content-page privacy-page"><div className="page-heading"><span className="eyebrow">YOUR DATA, YOUR CHOICE</span><h1>Privacy <em>center.</em></h1><p>Simple controls and clear information about what this app can protect.</p></div>
     <div className="privacy-card"><div className="privacy-icon"><ShieldCheck/></div><div className="privacy-copy"><h2>Privacy-friendly mode</h2><p>Controls optional local preferences and keeps this app free of injected ad scripts and third-party analytics.</p></div><button className={protection?'toggle active':'toggle'} onClick={()=>setProtection(!protection)} aria-label="Toggle privacy mode"><span/></button></div>
+    <section className="backup-panel"><div className="backup-panel-heading"><div className="privacy-icon"><FolderOpen/></div><div><span className="eyebrow">PERSONAL LIBRARY</span><h2>Backup & restore</h2><p>Keep a copy of your saved titles, progress, statuses and catalogue preference.</p></div></div><div className="backup-actions"><button className="primary-btn" onClick={exportBackup}><Download size={16}/> Back Up Now</button><label className="secondary-btn backup-import"><Upload size={16}/> {busy?'Restoring…':'Restore Backup'}<input type="file" accept="application/json,.json" onChange={importBackup} disabled={busy}/></label></div>{backupMessage && <p className="backup-message" role="status">{backupMessage}</p>}<p className="fine-print">Backups are saved as a JSON file that you choose where to store. After reinstalling, open this page and restore that file. This website version cannot silently write to a selected device folder; automatic folder backup requires native Android folder access and is not enabled yet.</p></section>
     <div className="privacy-grid"><div className="privacy-info"><h3><ShieldCheck size={17}/> First-party protection</h3><p>No advertising SDKs or analytics trackers are bundled by this application. External links open with safe browser isolation attributes.</p><span className="status-good">Enabled by design</span></div><div className="privacy-info"><h3><ExternalLink size={17}/> External video providers</h3><p>This is a regular website, not a network-level ad blocker. It cannot filter requests inside cross-origin video iframes or control ads served by an external player.</p><span className="status-neutral">Provider controlled</span></div><div className="privacy-info"><h3><Bookmark size={17}/> Local data</h3><p>Your watchlist and recently viewed titles are stored in this browser's local storage. They are not synced to a server.</p><span className="status-good">Stored on this device</span></div><div className="privacy-info"><h3><ShieldCheck size={17}/> Protection limits</h3><p>For stronger network-wide filtering, use a reputable browser content blocker or device-level DNS filtering. Do not disable provider security or access controls.</p><span className="status-neutral">Browser limitation</span></div></div>
     <p className="fine-print">AniList is used for public anime metadata. Requests are sent directly from your browser to AniList's public GraphQL API. Privacy mode does not claim to block all advertisements on third-party websites.</p>
   </main>;
