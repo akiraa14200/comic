@@ -166,7 +166,7 @@ export function ExtensionPage() {
             const sourceList = Array.isArray(item.sources) ? item.sources : [];
             const langs = [...new Set(sourceList.map(source => source?.lang).filter((value): value is string => Boolean(value)))];
             return {
-              id, packageName: id, name: item.name.replace(/^Tachiyomi:\\s*/, ''), version,
+              id, packageName: id, name: item.name.replace(/^Tachiyomi:\\s*/, ''), version: item.version,
               type: 'apk', apk: apkUrl, icon: safeHttps(iconUrl) ? iconUrl : undefined,
               lang: item.lang || (langs.length === 1 ? langs[0] : langs.length ? 'multiple' : 'unknown'),
               sourceCount: sourceList.length, repoFormat: 'json',
