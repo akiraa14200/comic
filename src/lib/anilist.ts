@@ -46,7 +46,7 @@ const endpoint = 'https://graphql.anilist.co';
 const fields = `
   id title { romaji english native } description(asHtml: false)
   coverImage { extraLarge large color } bannerImage averageScore episodes
-  status seasonYear format genres duration siteUrl
+  status seasonYear format genres duration countryOfOrigin siteUrl
   studios(isMain: true) { nodes { name } }
   nextAiringEpisode { episode airingAt }
   trailer { id site }
