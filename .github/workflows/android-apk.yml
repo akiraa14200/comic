@@ -42,6 +42,33 @@ jobs:
       - name: Generate Android project
         run: npx cap add android
 
+      - name: Allow one-tap media playback in Android WebView
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          files = list(Path("android/app/src/main/java").rglob("MainActivity.java"))
+          if not files:
+              raise SystemExit("Generated Capacitor MainActivity.java was not found")
+          path = files[0]
+          source = path.read_text()
+          if "setMediaPlaybackRequiresUserGesture(false)" not in source:
+              method = """
+                @Override
+                public void onCreate(android.os.Bundle savedInstanceState) {
+                    super.onCreate(savedInstanceState);
+                    if (bridge != null && bridge.getWebView() != null) {
+                        bridge.getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
+                    }
+                }
+              """
+              source = source.rstrip()
+              if not source.endswith("}"):
+                  raise SystemExit("Unexpected MainActivity.java structure")
+              source = source[:-1] + method + "\\n}\\n"
+              path.write_text(source)
+          print("Enabled first-tap media playback in", path)
+          PY
+
       - name: Copy web assets into Android app
         run: npx cap sync android
 
