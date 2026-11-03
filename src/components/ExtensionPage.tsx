@@ -5,7 +5,7 @@ type ExtensionEntry = {
   id: string; name: string; version: string; description?: string; lang?: string;
   nsfw?: boolean; type?: 'web' | 'apk'; manifest?: string; apk?: string;
   icon?: string; site?: string; source?: string; packageName?: string;
-  sourceCount?: number; repoFormat?: 'json' | 'protobuf';
+  sourceCount?: number; sources?: Array<{ id?: string; name: string; lang?: string; baseUrl?: string }>; repoFormat?: 'json' | 'protobuf';
 };
 type Repo = { id: string; url: string; name: string; extensions: ExtensionEntry[]; updatedAt: number; format?: string };
 const REPOS_KEY = 'rykoccllection-extension-repositories-v1';
@@ -73,7 +73,7 @@ const decodeKeiyoushiIndex = (bytes: Uint8Array, base: string): { name: string; 
     if (!apkPath) return null;
     const sourceList = repeatedBytes(ext, 8).map(encodedSource => {
       const source = readProtoFields(encodedSource);
-      return { name: fieldText(source, 2), lang: fieldText(source, 3), baseUrl: fieldText(source, 4) };
+      return { id: String(fieldNumber(source, 1)), name: fieldText(source, 2), lang: fieldText(source, 3), baseUrl: fieldText(source, 4) };
     });
     const languageSet = [...new Set(sourceList.map(source => source.lang).filter(Boolean))];
     const warning = fieldNumber(ext, 7);
@@ -82,7 +82,7 @@ const decodeKeiyoushiIndex = (bytes: Uint8Array, base: string): { name: string; 
       apk: resolveUrl(base, apkPath),
       icon: resolveUrl(base, fieldText(resources, 2) || 'icon/' + packageName + '.png'),
       lang: languageSet.length === 1 ? languageSet[0] : languageSet.length ? 'multiple' : 'unknown',
-      nsfw: warning >= 2, sourceCount: sourceList.length, repoFormat: 'protobuf',
+      nsfw: warning >= 2, sourceCount: sourceList.length, sources: sourceList.filter(source => source.name).map(source => ({ id: source.id, name: source.name, lang: source.lang, baseUrl: source.baseUrl })), repoFormat: 'protobuf',
       description: sourceList.length ? sourceList.length + ' source(s) · Extension library ' + (fieldText(ext, 4) || 'unknown') : 'Android source extension',
     };
   }).filter((item): item is ExtensionEntry => Boolean(item) && !item!.nsfw && safeHttps(item!.apk || ''));
@@ -111,7 +111,7 @@ export function ExtensionPage() {
   useEffect(() => { localStorage.setItem(REPOS_KEY, JSON.stringify(repos)); }, [repos]);
   useEffect(() => { localStorage.setItem(INSTALLED_KEY, JSON.stringify(installed)); }, [installed]);
   const extensions = useMemo(() => repos.flatMap(repo => repo.extensions.map(extension => ({...extension, _repo: repo.id, _base: repo.url}))), [repos]);
-  const visible = extensions.filter(item => (tab === 'all' || tab === 'installed' || item.type === tab) && (tab !== 'installed' || installed.includes(item.id)) && (item.name+' '+(item.description||'')+' '+(item.lang||'')).toLowerCase().includes(filter.toLowerCase()));
+  const visible = extensions.filter(item => (tab === 'all' || tab === 'installed' || item.type === tab) && (tab !== 'installed' || installed.includes(item.id)) && (item.name+' '+(item.description||'')+' '+(item.lang||'')+' '+(item.sources||[]).map(source=>source.name+' '+(source.lang||'')).join(' ')).toLowerCase().includes(filter.toLowerCase()));
 
   const readIndex = async (raw: string): Promise<Repo> => {
     const base = repoUrl(raw);
@@ -151,7 +151,7 @@ export function ExtensionPage() {
           if (!raw || typeof raw !== 'object') return null;
           const item = raw as {
             id?: string; pkg?: string; packageName?: string; name?: string; version?: string;
-            apk?: string; lang?: string; nsfw?: number | boolean; sources?: Array<{name?:string;lang?:string}>;
+            apk?: string; lang?: string; nsfw?: number | boolean; sources?: Array<{id?:string|number;name?:string;lang?:string;baseUrl?:string}>;
             icon?: string; iconUrl?: string; description?: string; type?: string; manifest?: string;
           };
           const id = item.id || item.pkg || item.packageName;
@@ -169,7 +169,7 @@ export function ExtensionPage() {
               id, packageName: id, name: item.name.replace(/^Tachiyomi:\\s*/, ''), version: item.version,
               type: 'apk', apk: apkUrl, icon: safeHttps(iconUrl) ? iconUrl : undefined,
               lang: item.lang || (langs.length === 1 ? langs[0] : langs.length ? 'multiple' : 'unknown'),
-              sourceCount: sourceList.length, repoFormat: 'json',
+              sourceCount: sourceList.length, sources: sourceList.filter(source => source?.name).map(source => ({id: String(source.id || ''), name: source.name || '', lang: source.lang, baseUrl: source.baseUrl})), repoFormat: 'json',
               description: item.description || (sourceList.length ? sourceList.length + ' source(s)' : 'Android source extension'),
             };
           }
@@ -233,7 +233,7 @@ export function ExtensionPage() {
     {repos.length>0 && <div className="extension-repo-list">{repos.map(repo=><div className="extension-repo" key={repo.id}><div><strong>{repo.name}</strong><span>{repo.extensions.length} supported extensions · {repo.format || new URL(repo.url).host}</span></div><button title="Refresh repository" onClick={()=>void refreshRepo(repo)} disabled={busy}><RefreshCw size={16}/></button><button title="Remove repository" onClick={()=>setRepos(old=>old.filter(item=>item.id!==repo.id))}><Trash2 size={16}/></button></div>)}</div>}</section>
     {notice && <p className="extension-notice" role="status">{notice}</p>}
     <div className="extension-toolbar"><label className="large-search"><Search size={17}/><input value={filter} onChange={event=>setFilter(event.target.value)} placeholder="Search extensions…"/></label><div className="extension-tabs">{(['all','web','apk','installed'] as const).map(value=><button key={value} className={tab===value?'active':''} onClick={()=>setTab(value)}>{value==='all'?'All':value==='web'?'Web':value==='apk'?'Android APK':'Installed'}</button>)}</div></div>
-    <div className="extension-grid">{visible.map(item=><article className="extension-card" key={item.id}><div className="extension-card-icon">{item.icon ? <img src={item.icon} alt="" /> : <Puzzle size={22}/>}</div><div className="extension-card-main"><div className="extension-card-title"><h3>{item.name}</h3><span className="extension-type">{item.type==='apk'?'ANDROID APK':'WEB SOURCE'}</span></div><p>{item.description||'Community source extension.'}</p><div className="extension-meta"><span>{item.lang||'Unknown language'}</span><span>v{item.version}</span>{item.sourceCount ? <span>{item.sourceCount} sources</span> : null}</div><div className="extension-actions">{item.type==='web' ? installed.includes(item.id) ? <button className="secondary-btn" onClick={()=>removeExtension(item.id)}>Uninstall</button> : <button className="primary-btn" disabled={busy} onClick={()=>void installWeb(item)}> <Download size={15}/> Install</button> : <a className="primary-btn" href={item.apk} target="_blank" rel="noopener noreferrer"><Download size={15}/> Download APK</a>}{item.site && <a className="secondary-btn" href={item.site} target="_blank" rel="noopener noreferrer">Website <ExternalLink size={13}/></a>}</div></div></article>)}</div>
+    <div className="extension-grid">{visible.map(item=><article className="extension-card" key={item.id}><div className="extension-card-icon">{item.icon ? <img src={item.icon} alt="" /> : <Puzzle size={22}/>}</div><div className="extension-card-main"><div className="extension-card-title"><h3>{item.name}</h3><span className="extension-type">{item.type==='apk'?'ANDROID APK':'WEB SOURCE'}</span></div><p>{item.description||'Community source extension.'}</p>{item.sources?.length ? <div className="extension-source-list"><strong>Included sources ({item.sources.length})</strong><div className="extension-source-chips">{item.sources.map((source,index)=><span className="extension-source-chip" key={(source.id||source.name)+index}>{source.name}<small>{source.lang||item.lang||'Unknown'}</small></span>)}</div></div> : null}<div className="extension-meta"><span>{item.lang||'Unknown language'}</span><span>v{item.version}</span>{item.sourceCount ? <span>{item.sourceCount} sources</span> : null}</div><div className="extension-actions">{item.type==='web' ? installed.includes(item.id) ? <button className="secondary-btn" onClick={()=>removeExtension(item.id)}>Uninstall</button> : <button className="primary-btn" disabled={busy} onClick={()=>void installWeb(item)}> <Download size={15}/> Install</button> : <a className="primary-btn" href={item.apk} target="_blank" rel="noopener noreferrer"><Download size={15}/> Download APK</a>}{item.site && <a className="secondary-btn" href={item.site} target="_blank" rel="noopener noreferrer">Website <ExternalLink size={13}/></a>}</div></div></article>)}</div>
     {!visible.length && <div className="extension-empty"><Puzzle size={26}/><h3>{repos.length?'No extensions found':'No repositories added yet'}</h3><p>Add a supported repository to discover compatible sources.</p></div>}
     <div className="extension-help"><h3>Repository compatibility</h3><p>Keiyoushi index.pb is decoded using its Protocol Buffers field layout. Compatible APK entries are listed with their source metadata and official download URL.</p><p>Important: listing and downloading an APK is not the same as loading it. Native Mihon/Yōkai extension execution requires a compatible Android extension runtime, which is not yet part of this Capacitor web app.</p></div>
   </main>;
