@@ -41,3 +41,86 @@
 .video-page>.fine-print{margin-top:22px}
 @media(max-width:900px){.video-trailer-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:600px){.video-trailer-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 10px}.video-selected{align-items:start;flex-direction:column;padding:15px}.video-selected h2{font-size:16px}.video-player-wrap{aspect-ratio:16/9}.video-feature{border-radius:12px}}
+
+
+/* Reddit-inspired anime entry discussions */
+.nav-account{display:flex;align-items:center;gap:9px;white-space:nowrap;color:#c8c4d4;font-size:11px}
+.nav-account button{border:1px solid var(--line);background:#ffffff08;color:#aaa2ff;border-radius:9px;padding:8px 10px;font-size:10px}
+.anime-discussion{margin-top:42px;padding:25px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,#11131b,#0d0f15)}
+.anime-discussion-heading{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:22px}
+.anime-discussion-heading h2{font:800 clamp(23px,3vw,31px) Manrope;letter-spacing:-.04em;margin:8px 0}
+.anime-discussion-heading p{font-size:12px;color:#92919e;margin:0}
+.anime-discussion-heading p strong{color:#dedbe9}
+.discussion-count{font-size:11px;color:#b4aaff;background:#a99bff12;border:1px solid #a99bff25;border-radius:20px;padding:7px 10px;white-space:nowrap}
+.anime-comment-composer{display:flex;gap:13px;padding:16px;border:1px solid #ffffff17;border-radius:14px;background:#090b11}
+.composer-avatar,.comment-avatar{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:50%;background:linear-gradient(135deg,#b9aaff,#7668d8);color:#12101d;font-weight:800;font-size:12px}
+.composer-main{flex:1;min-width:0}
+.composer-main textarea,.anime-reply-form textarea,.anime-comment-edit textarea{width:100%;min-height:88px;resize:vertical;background:#ffffff06;border:1px solid #ffffff13;border-radius:10px;padding:12px;color:#f4f2ff;font:12px/1.65 inherit;outline:none}
+.composer-main textarea:focus,.anime-reply-form textarea:focus,.anime-comment-edit textarea:focus{border-color:#9f91ff88}
+.composer-controls{display:flex;align-items:center;gap:12px;margin-top:10px}
+.composer-controls>span{margin-left:auto;color:#777;font-size:10px}
+.spoiler-check,.anime-reply-form label{display:flex;align-items:center;gap:7px;color:#b4b0c1;font-size:10px}
+.spoiler-check input,.anime-reply-form label input{accent-color:#a99bff}
+.composer-controls .primary-btn,.anime-reply-form .primary-btn{padding:9px 13px;font-size:10px}
+.anime-auth-card{padding:18px;border:1px solid #ffffff17;border-radius:14px;background:#090b11}
+.anime-auth-copy strong{font:700 14px Manrope}
+.anime-auth-copy p{font-size:11px;color:#8d8c99;margin:6px 0 14px}
+.anime-auth-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.anime-auth-form input{min-width:0;height:42px;background:#ffffff07;border:1px solid #ffffff18;border-radius:9px;padding:0 11px;color:#fff;font-size:11px;outline:none}
+.anime-auth-form .primary-btn{grid-column:1/-1;justify-self:start;padding:10px 15px;font-size:10px}
+.anime-auth-switch{margin-top:12px;border:0;background:none;color:#aaa0ff;font-size:10px;padding:0}
+.anime-comment-error,.anime-comment-success{font-size:11px;line-height:1.5;margin:12px 0 0;color:#ff9d9d}
+.anime-comment-success{color:#9eddb8}
+.anime-discussion-toolbar{display:flex;align-items:center;justify-content:space-between;margin:23px 0 10px;padding-bottom:10px;border-bottom:1px solid var(--line);color:#777;font-size:9px;letter-spacing:.14em}
+.anime-discussion-toolbar label{display:flex;align-items:center;gap:8px;color:#8e8c99;letter-spacing:0;font-size:10px}
+.anime-discussion-toolbar select{background:#171923;border:1px solid #ffffff1b;border-radius:8px;padding:7px 10px;color:#ddd;font-size:10px}
+.anime-comment{display:flex;gap:10px;padding:17px 0;border-bottom:1px solid #ffffff0d}
+.anime-comment-votes{width:28px;flex:none;display:flex;align-items:center;flex-direction:column;gap:2px;color:#bdb8cf}
+.anime-comment-votes strong{font-size:10px;font-variant-numeric:tabular-nums}
+.vote-btn{width:26px;height:25px;display:grid;place-items:center;border:0;background:none;color:#777687;padding:0}
+.vote-btn.active{color:#b5a6ff}
+.vote-btn.active.down{color:#f2a88e}
+.vote-btn:disabled{opacity:.35;cursor:not-allowed}
+.anime-comment-main{flex:1;min-width:0}
+.anime-comment-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;color:#777684;font-size:10px}
+.anime-comment-meta strong{color:#e4e1ed;font-size:11px}
+.comment-avatar{width:22px;height:22px;font-size:9px}
+.anime-comment-meta time{color:#777}
+.comment-edited{font-size:9px;color:#888}
+.spoiler-tag{font-size:8px;letter-spacing:.08em;color:#ffc58c;border:1px solid #ffc58c44;background:#ffc58c0c;border-radius:4px;padding:3px 5px}
+.anime-comment-body{white-space:pre-wrap;overflow-wrap:anywhere;color:#c9c6d2;font-size:12px;line-height:1.75;margin:10px 0}
+.spoiler-body{border-left:2px solid #c59b64;padding-left:10px}
+.spoiler-reveal{width:100%;min-height:55px;display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px dashed #a98b5d66;border-radius:9px;background:#c59b640d;color:#e4c18f;padding:12px;margin:10px 0;text-align:left;font-size:11px}
+.spoiler-reveal strong{font-size:10px;color:#f2d4a9}
+.anime-comment-actions{display:flex;align-items:center;gap:15px;flex-wrap:wrap}
+.anime-comment-actions button{display:inline-flex;align-items:center;gap:5px;border:0;background:none;color:#898795;padding:3px 0;font-size:10px}
+.anime-comment-actions button:hover{color:#c4baff}
+.anime-comment-actions button:disabled{opacity:.35;cursor:not-allowed}
+.anime-comment-children{margin:14px 0 0 3px;padding-left:15px;border-left:1px solid #ffffff1b}
+.anime-reply-form,.anime-comment-edit{display:grid;gap:9px;margin:13px 0;padding:12px;border:1px solid #ffffff12;border-radius:10px;background:#090b11}
+.anime-reply-form textarea,.anime-comment-edit textarea{min-height:65px}
+.anime-reply-form .primary-btn{justify-self:end}
+.anime-comment-edit>div{display:flex;justify-content:end;gap:8px}
+.anime-comment-edit .primary-btn,.anime-comment-edit .secondary-btn{padding:8px 12px;font-size:10px}
+.anime-comments-loading,.anime-comments-empty{padding:35px 12px;text-align:center;color:#858390;font-size:11px}
+.anime-comments-empty svg{color:#a99bff;margin-bottom:8px}
+.anime-comments-empty strong{display:block;color:#d7d3e3;font:700 13px Manrope}
+.anime-comments-empty p{margin:6px 0 0}
+@media(max-width:700px){
+  .nav-account{display:none}
+  .anime-discussion{padding:17px 13px;margin-top:30px;border-radius:13px}
+  .anime-discussion-heading{align-items:start}
+  .anime-discussion-heading h2{font-size:23px}
+  .anime-discussion-heading p{font-size:10px;line-height:1.5}
+  .anime-comment-composer{padding:11px;gap:9px}
+  .composer-avatar{width:28px;height:28px}
+  .composer-controls{gap:8px;flex-wrap:wrap}
+  .composer-controls>span{display:none}
+  .composer-controls .primary-btn{margin-left:auto}
+  .anime-auth-form{grid-template-columns:1fr}
+  .anime-auth-form .primary-btn{grid-column:auto}
+  .anime-comment{gap:7px;padding:14px 0}
+  .anime-comment-votes{width:23px}
+  .anime-comment-body{font-size:11px}
+  .anime-comment-children{padding-left:9px}
+}
