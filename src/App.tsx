@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft } from 'lucide-react';
 // The application UI and page components are defined below.
@@ -459,11 +459,69 @@ function VideoPage() {
   const visible=format==='short'?shorts:format==='video'?regular:filtered;
   const loadMore=async()=>{if(loadingMore||!hasMore)return;setLoadingMore(true);setError('');try{const raw=await getRelatedVideos(page+1);const data=await enrichVideoMetadata(raw);setVideos(old=>[...old,...data.filter(v=>!old.some(x=>x.id===v.id))]);setPage(page+1);setHasMore(data.length>0);}catch(e){setError(e instanceof Error?e.message:'Could not load more videos.');}finally{setLoadingMore(false);}};
 
+  // Personalize the combined feed from titles a user has saved or recently opened.
+  // The catalogue includes both community uploads and AniList trailer entries.
+  const ranked = (list: RelatedVideo[]) => {
+    const saved = readStore<Anime[]>('kairo-watchlist', []);
+    const history = readStore<StoredProgress[]>('kairo-history', []);
+    const interestGenres = new Set(saved.flatMap(item => item.genres || []).map(value => value.toLowerCase()));
+    const interestFormats = new Set(saved.map(item => (item.format || '').toLowerCase()));
+    const interestTitles = [...saved.map(item => titleOf(item)), ...history.map(item => item.title)]
+      .map(value => value.toLowerCase()).filter(Boolean);
+    const scored = list.map(video => {
+      const videoGenres = (video.genres || []).map(value => value.toLowerCase());
+      const genreScore = videoGenres.reduce((sum, genre) => sum + (interestGenres.has(genre) ? 5 : 0), 0);
+      const formatScore = interestFormats.has((video.titleFormat || '').toLowerCase()) ? 3 : 0;
+      const title = (video.titleName || video.videoTitle || '').toLowerCase();
+      const titleScore = interestTitles.some(value => value && (title.includes(value) || value.includes(title))) ? 12 : 0;
+      return { video, score: genreScore + formatScore + titleScore };
+    });
+    // Shuffle first, then use relevance as the primary ordering so equally relevant
+    // videos do not appear in the same order on every visit.
+    for (let i = scored.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [scored[i], scored[j]] = [scored[j], scored[i]];
+    }
+    return scored.sort((left, right) => right.score - left.score).map(item => item.video);
+  };
+  const recommendedRegular = ranked(regular);
+  const recommendedShorts = ranked(shorts);
+  const feedBlocks = useMemo(() => {
+    const blocks: { kind: 'videos' | 'shorts'; items: RelatedVideo[] }[] = [];
+    let videoIndex = 0;
+    let shortIndex = 0;
+    while (videoIndex < recommendedRegular.length) {
+      blocks.push({ kind: 'videos', items: recommendedRegular.slice(videoIndex, videoIndex + 10) });
+      videoIndex += 10;
+      if (shortIndex < recommendedShorts.length) {
+        const desired = 6 + Math.floor(Math.random() * 5);
+        const count = Math.min(desired, recommendedShorts.length - shortIndex);
+        blocks.push({ kind: 'shorts', items: recommendedShorts.slice(shortIndex, shortIndex + count) });
+        shortIndex += count;
+      }
+    }
+    // If the feed currently contains only Shorts, still make them discoverable.
+    if (!recommendedRegular.length && recommendedShorts.length) {
+      blocks.push({ kind: 'shorts', items: recommendedShorts.slice(0, 10) });
+    }
+    return blocks;
+  }, [recommendedRegular, recommendedShorts]);
+
   if(format==='all'){
-    const shortBatches:RelatedVideo[][]=[];for(let i=0;i<shorts.length;i+=12)shortBatches.push(shorts.slice(i,i+12));
-    const videoBatches:RelatedVideo[][]=[];for(let i=0;i<regular.length;i+=8)videoBatches.push(regular.slice(i,i+8));
-    const total=Math.max(shortBatches.length,videoBatches.length);
     return <main className="video-page yt-page">
+      <header className="yt-topbar"><div className="yt-brand"><span className="yt-brand-mark"><Play size={17} fill="currentColor"/></span><strong>Ryko<span>Tube</span></strong><small>Collection</small></div><label className="yt-search"><Search size={19}/><input value={term} onChange={e=>setTerm(e.target.value)} placeholder="Search videos, creators or titles" autoComplete="off"/>{term&&<button onClick={()=>setTerm('')} aria-label="Clear search"><X size={16}/></button>}</label></header>
+      <nav className="yt-filter-bar" aria-label="Video format">{([{id:'all',label:'All'},{id:'video',label:'Videos'},{id:'short',label:'Shorts'}] as const).map(x=><button key={x.id} className={format===x.id?'active':''} onClick={()=>setFormat(x.id)}>{x.label}</button>)}</nav>
+      <nav className="yt-category-bar" aria-label="Filter by title category">{['All','Anime','Manga','Manhwa','Manhua','Movie','TV Series'].map(x=><button key={x} className={category===x?'active':''} onClick={()=>setCategory(x)}>{x}</button>)}</nav>
+      {error&&<div className="notice">{error}</div>}
+      {loading?<div className="yt-loading-grid" aria-label="Loading videos">{Array.from({length:4},(_,i)=><div className="yt-skeleton-card" key={i}><div className="yt-skeleton-thumb"/><div className="yt-skeleton-meta"><div className="yt-skeleton-avatar"/><div className="yt-skeleton-copy"><span className="yt-skeleton-line"/><span className="yt-skeleton-line"/></div></div></div>)}</div>:filtered.length?feedBlocks.map((block,index)=><section className={block.kind==='shorts'?'yt-section yt-shorts-section':'yt-section'} key={block.kind+'-'+index}>
+        <div className="yt-section-heading"><div><h2>{block.kind==='shorts'?<><span className="yt-shorts-symbol">▰</span> Shorts</>:'Recommended videos'}</h2><p>{block.kind==='shorts'?'A fresh random mix of quick clips':'A blend of community videos and anime & manga trailers, tailored to your interests'}</p></div><span>{block.items.length} {block.kind}</span></div>
+        <div className={block.kind==='shorts'?'yt-shorts-row':'yt-video-feed'}>{block.items.map(video=><LazyVideoCard key={video.id} video={video} short={block.kind==='shorts'} playing={playingId===video.id} onPlay={()=>setPlayingId(playingId===video.id?null:video.id)}/>)}</div>
+      </section>):<div className="yt-empty"><Play size={28}/><h3>{term||category!=='All'?'No matching videos':'No videos yet'}</h3><p>Try changing your search or filters.</p><button className="secondary-btn" onClick={()=>{setTerm('');setCategory('All');setFormat('all');}}>Clear filters</button></div>}
+      {!loading&&hasMore&&<div className="load-more-wrap"><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading…':'Load more'}</button></div>}
+      <p className="yt-disclaimer">Playback availability depends on each original video provider and its embedding settings.</p>
+    </main>;
+  }
+  return <main className="video-page yt-page">
       <header className="yt-topbar"><div className="yt-brand"><span className="yt-brand-mark"><Play size={17} fill="currentColor"/></span><strong>Ryko<span>Tube</span></strong><small>Collection</small></div><label className="yt-search"><Search size={19}/><input value={term} onChange={e=>setTerm(e.target.value)} placeholder="Search videos, creators or titles" autoComplete="off"/>{term&&<button onClick={()=>setTerm('')} aria-label="Clear search"><X size={16}/></button>}</label></header>
       <nav className="yt-filter-bar" aria-label="Video format">{([{id:'all',label:'All'},{id:'video',label:'Videos'},{id:'short',label:'Shorts'}] as const).map(x=><button key={x.id} className={format===x.id?'active':''} onClick={()=>setFormat(x.id)}>{x.label}</button>)}</nav>
       <nav className="yt-category-bar" aria-label="Filter by title category">{['All','Anime','Manga','Manhwa','Manhua','Movie','TV Series'].map(x=><button key={x} className={category===x?'active':''} onClick={()=>setCategory(x)}>{x}</button>)}</nav>
