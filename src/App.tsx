@@ -367,6 +367,16 @@ function isShortVideo(video: RelatedVideo) {
     return /\/(shorts|reel|reels)\//i.test(url.pathname);
   } catch { return false; }
 }
+function detectVideoFormat(url:string) {
+  try {
+    const u=new URL(String(url||'').trim()),host=u.hostname.toLowerCase().replace(/^www\./,'').replace(/^m\./,'');
+    const parts=u.pathname.split('/').filter(Boolean);
+    if((host==='youtube.com'||host==='youtube-nocookie.com')&&parts[0]==='shorts')return 'short';
+    if(host==='instagram.com'&&['reel','reels'].includes(parts[0]))return 'short';
+    if(host==='tiktok.com'&&parts.includes('video'))return 'short';
+    return 'video';
+  } catch { return 'video'; }
+}
 function VideoPage() {
   const [videos,setVideos]=useState<RelatedVideo[]>([]);
   const [page,setPage]=useState(1);
@@ -376,12 +386,15 @@ function VideoPage() {
   const [loadingMore,setLoadingMore]=useState(false);
   const [error,setError]=useState('');
   const [term,setTerm]=useState('');
-  const [filter,setFilter]=useState<'all'|'videos'|'shorts'>('all');
+  const [format,setFormat]=useState<'all'|'video'|'short'>('all');
+  const [category,setCategory]=useState('All');
   useEffect(()=>{let active=true;getRelatedVideos(1).then(data=>{if(!active)return;setVideos(data);setHasMore(data.length===40);}).catch(e=>{if(active)setError(e instanceof Error?e.message:'Could not load videos.');}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[]);
-  const searched=videos.filter(v=>[v.videoTitle,v.creatorName,v.titleName].join(' ').toLowerCase().includes(term.toLowerCase()));
-  const shorts=searched.filter(isShortVideo);
-  const regular=searched.filter(v=>!isShortVideo(v));
-  const visible=filter==='shorts'?shorts:filter==='videos'?regular:searched;
+  const searchable=videos.filter(v=>[v.videoTitle,v.creatorName,v.titleName].join(' ').toLowerCase().includes(term.toLowerCase()));
+  const categoryMatch=(v:RelatedVideo)=>category==='All'||(v.titleFormat||'').toLowerCase()===category.toLowerCase();
+  const filtered=searchable.filter(categoryMatch);
+  const shorts=filtered.filter(v=>detectVideoFormat(v.videoUrl)==='short');
+  const regular=filtered.filter(v=>detectVideoFormat(v.videoUrl)==='video');
+  const visible=format==='short'?shorts:format==='video'?regular:filtered;
   const loadMore=async()=>{if(loadingMore||!hasMore)return;setLoadingMore(true);setError('');try{const data=await getRelatedVideos(page+1);setVideos(old=>[...old,...data.filter(v=>!old.some(x=>x.id===v.id))]);setPage(page+1);setHasMore(data.length===40);}catch(e){setError(e instanceof Error?e.message:'Could not load more videos.');}finally{setLoadingMore(false);}};
   const card=(video:RelatedVideo,short:boolean)=>{
     const playing=playingId===video.id,embed=videoEmbedUrl(video),thumbnail=videoThumbnail(video);
@@ -402,17 +415,30 @@ function VideoPage() {
       </div>
     </article>;
   };
+  const batches:(RelatedVideo[])[]=[];
+  if(format==='all'){
+    const shortBatches:RelatedVideo[][]=[];for(let i=0;i<shorts.length;i+=12)shortBatches.push(shorts.slice(i,i+12));
+    const videoBatches:RelatedVideo[][]=[];for(let i=0;i<regular.length;i+=8)videoBatches.push(regular.slice(i,i+8));
+    const total=Math.max(shortBatches.length,videoBatches.length);
+    return <main className="video-page yt-page">
+      <header className="yt-topbar"><div className="yt-brand"><span className="yt-brand-mark"><Play size={17} fill="currentColor"/></span><strong>Ryko<span>Tube</span></strong><small>Collection</small></div><label className="yt-search"><Search size={19}/><input value={term} onChange={e=>setTerm(e.target.value)} placeholder="Search videos, creators or titles" autoComplete="off"/>{term&&<button onClick={()=>setTerm('')} aria-label="Clear search"><X size={16}/></button>}</label></header>
+      <nav className="yt-filter-bar" aria-label="Video format">{([{id:'all',label:'All'},{id:'video',label:'Videos'},{id:'short',label:'Shorts'}] as const).map(x=><button key={x.id} className={format===x.id?'active':''} onClick={()=>setFormat(x.id)}>{x.label}</button>)}</nav>
+      <nav className="yt-category-bar" aria-label="Filter by title category">{['All','Anime','Manga','Manhwa','Manhua','Movie','TV Series'].map(x=><button key={x} className={category===x?'active':''} onClick={()=>setCategory(x)}>{x}</button>)}</nav>
+      {error&&<div className="notice">{error}</div>}
+      {loading?<div className="video-loading">Loading your Ryko video library…</div>:filtered.length?Array.from({length:total},(_,i)=><React.Fragment key={i}>
+        {shortBatches[i]?.length>0&&<section className="yt-section yt-shorts-section"><div className="yt-section-heading"><div><h2><span className="yt-shorts-symbol">▰</span> Shorts</h2><p>Quick clips from your collection</p></div><span>{shortBatches[i].length} shorts</span></div><div className="yt-shorts-row">{shortBatches[i].map(v=>card(v,true))}</div></section>}
+        {videoBatches[i]?.length>0&&<section className="yt-section"><div className="yt-section-heading"><div><h2>Videos</h2><p>Trailers, edits and full-length videos</p></div><span>{videoBatches[i].length} videos</span></div><div className="yt-video-feed">{videoBatches[i].map(v=>card(v,false))}</div></section>}
+      </React.Fragment>):<div className="yt-empty"><Play size={28}/><h3>{term||category!=='All'?'No matching videos':'No videos yet'}</h3><p>Try changing your search or filters.</p><button className="secondary-btn" onClick={()=>{setTerm('');setCategory('All');setFormat('all');}}>Clear filters</button></div>}
+      {!loading&&hasMore&&<div className="load-more-wrap"><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading…':'Load more'}</button></div>}
+      <p className="yt-disclaimer">Playback availability depends on each original video provider and its embedding settings.</p>
+    </main>;
+  }
   return <main className="video-page yt-page">
-    <header className="yt-topbar"><div className="yt-brand"><span className="yt-brand-mark"><Play size={17} fill="currentColor"/></span><strong>Ryko<span>Tube</span></strong><small>Collection</small></div><label className="yt-search"><Search size={19}/><input value={term} onChange={e=>setTerm(e.target.value)} placeholder="Search videos" autoComplete="off"/>{term&&<button onClick={()=>setTerm('')} aria-label="Clear search"><X size={16}/></button>}</label></header>
-    <nav className="yt-filter-bar" aria-label="Video categories">
-      {([{id:'all',label:'All',count:searched.length},{id:'videos',label:'Videos',count:regular.length},{id:'shorts',label:'Shorts',count:shorts.length}] as const).map(item=><button key={item.id} className={filter===item.id?'active':''} onClick={()=>setFilter(item.id)}>{item.label}</button>)}
-    </nav>
+    <header className="yt-topbar"><div className="yt-brand"><span className="yt-brand-mark"><Play size={17} fill="currentColor"/></span><strong>Ryko<span>Tube</span></strong><small>Collection</small></div><label className="yt-search"><Search size={19}/><input value={term} onChange={e=>setTerm(e.target.value)} placeholder="Search videos, creators or titles" autoComplete="off"/>{term&&<button onClick={()=>setTerm('')} aria-label="Clear search"><X size={16}/></button>}</label></header>
+    <nav className="yt-filter-bar" aria-label="Video format">{([{id:'all',label:'All'},{id:'video',label:'Videos'},{id:'short',label:'Shorts'}] as const).map(x=><button key={x.id} className={format===x.id?'active':''} onClick={()=>setFormat(x.id)}>{x.label}</button>)}</nav>
+    <nav className="yt-category-bar" aria-label="Filter by title category">{['All','Anime','Manga','Manhwa','Manhua','Movie','TV Series'].map(x=><button key={x} className={category===x?'active':''} onClick={()=>setCategory(x)}>{x}</button>)}</nav>
     {error&&<div className="notice">{error}</div>}
-    {loading?<div className="video-loading">Loading your Ryko video library…</div>:visible.length?<>
-      {filter==='all'&&shorts.length>0&&<section className="yt-section yt-shorts-section"><div className="yt-section-heading"><div><h2><span className="yt-shorts-symbol">▰</span> Shorts</h2><p>Quick clips from your collection</p></div><span>{shorts.length} clips</span></div><div className="yt-shorts-grid">{shorts.map(v=>card(v,true))}</div></section>}
-      {filter==='all'&&regular.length>0&&<section className="yt-section"><div className="yt-section-heading"><div><h2>Videos</h2><p>Trailers, edits and full-length videos</p></div><span>{regular.length} videos</span></div><div className="yt-video-feed">{regular.map(v=>card(v,false))}</div></section>}
-      {filter!=='all'&&<section className="yt-section"><div className="yt-section-heading"><div><h2>{filter==='shorts'?'Shorts':'Videos'}</h2><p>{filter==='shorts'?'Vertical quick clips':'Trailers, edits and full-length videos'}</p></div><span>{visible.length} results</span></div><div className={filter==='shorts'?'yt-shorts-grid':'yt-video-feed'}>{visible.map(v=>card(v,filter==='shorts'))}</div></section>}
-    </>:<div className="yt-empty"><Play size={28}/><h3>{term?'No matching videos':'No videos yet'}</h3><p>{term?'Try another title or creator.':'Videos added to the Ryko website catalogue will appear here.'}</p></div>}
+    {loading?<div className="video-loading">Loading your Ryko video library…</div>:visible.length?<section className="yt-section"><div className="yt-section-heading"><div><h2>{format==='short'?'Shorts':'Videos'}</h2><p>{format==='short'?'Quick vertical clips':'Trailers, edits and full-length videos'}</p></div><span>{visible.length} results</span></div><div className={format==='short'?'yt-shorts-grid':'yt-video-feed'}>{visible.map(v=>card(v,format==='short'))}</div></section>:<div className="yt-empty"><Play size={28}/><h3>No matching videos</h3><p>Try another search or category.</p><button className="secondary-btn" onClick={()=>{setTerm('');setCategory('All');setFormat('all');}}>Clear filters</button></div>}
     {!loading&&hasMore&&<div className="load-more-wrap"><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading…':'Load more'}</button></div>}
     <p className="yt-disclaimer">Playback availability depends on each original video provider and its embedding settings.</p>
   </main>;
