@@ -9,7 +9,6 @@ A responsive anime discovery interface inspired by modern streaming catalogues. 
 - Anime detail pages with synopsis, genres, studio and metadata.
 - Browser-local watchlist and recently viewed history.
 - Responsive layouts for mobile and desktop.
-- Dedicated Video tab with an embedded Anikototv web view and external-browser fallback.
 - Privacy information page; no advertising SDKs or analytics scripts are bundled.
 - Optional user-supplied external video URL handoff. The app does not host episodes or provide unauthorized streams.
 
@@ -40,7 +39,6 @@ npm run preview
 
 Anime metadata is requested directly from AniList's public GraphQL API. Watchlist and recently viewed metadata are stored in the current browser's local storage; there is no account backend or cross-device sync in this version.
 
-The Video tab embeds Anikototv in a cross-origin frame when the provider permits it; if the provider blocks framing, use the external-browser link. Playback, sign-in, cookies and ads remain provider-controlled. A normal website cannot reliably block ads or trackers inside cross-origin third-party video players. The privacy page describes this limitation accurately. For network-level filtering, users can configure a reputable browser content blocker or device-level DNS filtering. This app does not bypass DRM, authentication, subscriptions, paywalls or provider access controls.
 
 ## Scope notes
 
@@ -62,3 +60,8 @@ When the workflow succeeds:
 4. Extract the ZIP and install `app-debug.apk` on your Android device.
 
 This is a debug APK for testing and personal installation, not a Play Store-signed release. The APK artifact is retained by GitHub Actions for 14 days. Android project files are generated during CI, so the repository remains focused on the web source and build configuration.
+
+
+## Video previews
+
+The Video tab displays trailer metadata from AniList and embeds supported YouTube previews. It does not host episodes, extract streams, or proxy third-party video files. Playback and availability are controlled by YouTube and the video publisher.
