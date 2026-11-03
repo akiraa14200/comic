@@ -9,7 +9,7 @@ import { AnimeComments } from './components/AnimeComments';
 import { ExtensionPage } from './components/ExtensionPage';
 import './components/extension-page.css';
 
-type StoredProgress = { id: number; title: string; image: string; progress: number; updated: number };
+type StoredProgress = { id: string; title: string; image: string; progress: number; updated: number };
 const readStore = <T,>(key: string, fallback: T): T => {
   try { const value = localStorage.getItem(key); return value ? JSON.parse(value) as T : fallback; } catch { return fallback; }
 };
@@ -57,7 +57,7 @@ function useLibrary() {
   useEffect(() => localStorage.setItem('rykoc-library-status', JSON.stringify(statuses)), [statuses]);
   const toggle = (anime: Anime) => setSaved(old => old.some(item => item.id === anime.id) ? old.filter(item => item.id !== anime.id) : [anime, ...old]);
   const remember = (anime: Anime) => setHistory(old => [{ id: anime.id, title: titleOf(anime), image: imageOf(anime), progress: 0, updated: Date.now() }, ...old.filter(item => item.id !== anime.id)].slice(0, 20));
-  const setLibraryStatus = (id: number, status: 'Watching' | 'Plan to Watch' | 'Completed' | 'Waiting') => setStatuses(old => ({ ...old, [id]: status }));
+  const setLibraryStatus = (id: string, status: 'Watching' | 'Plan to Watch' | 'Completed' | 'Waiting') => setStatuses(old => ({ ...old, [id]: status }));
   return { saved, history, toggle, remember, statuses, setLibraryStatus };
 }
 
