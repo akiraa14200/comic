@@ -15,7 +15,7 @@ export type AnimeCharacter = {
 };
 export type AnimeStaff = { role: string; node: { name: { full?: string } } };
 export type AnimeExternalLink = { url: string; site: string; type?: string };
-export type RelatedVideo = { id: string; titleId: string; videoUrl: string; platform: 'youtube' | 'instagram' | 'dailymotion'; videoTitle: string; creatorName: string; creatorAvatarUrl: string; actionType: 'read' | 'watch'; actionUrl: string; sortOrder: number; createdAt: string; titleName?: string; titleCover?: string; titleFormat?: string; releaseYear?: number };
+export type RelatedVideo = { id: string; titleId: string; videoUrl: string; platform: 'youtube' | 'instagram' | 'dailymotion'; videoTitle: string; creatorName: string; creatorAvatarUrl: string; actionType: 'read' | 'watch'; actionUrl: string; sortOrder: number; createdAt: string; titleName?: string; titleCover?: string; titleFormat?: string; releaseYear?: number; genres?: string[] };
 export type Anime = {
   id: string;
   anilistId?: number;
@@ -90,12 +90,12 @@ export async function getRelatedVideos(page = 1, titleId?: string): Promise<Rela
   const videos = ((data || []) as RelatedVideoRow[]).map(mapRelatedVideo);
   const titleIds = [...new Set(videos.map(video => video.titleId))];
   if (titleIds.length) {
-    const { data: titles, error: titleError } = await supabase.from('titles').select('id,name,cover_url,media_type,release_year').in('id', titleIds);
+    const { data: titles, error: titleError } = await supabase.from('titles').select('id,name,cover_url,media_type,release_year,genres').in('id', titleIds);
     throwIf(titleError);
     const byId = new Map((titles || []).map((title: any) => [title.id, title]));
     videos.forEach(video => {
       const title: any = byId.get(video.titleId);
-      if (title) { video.titleName = title.name; video.titleCover = title.cover_url; video.titleFormat = title.media_type; video.releaseYear = title.release_year; }
+      if (title) { video.titleName = title.name; video.titleCover = title.cover_url; video.titleFormat = title.media_type; video.releaseYear = title.release_year; video.genres = title.genres || []; }
     });
   }
 
@@ -136,7 +136,8 @@ export async function getRelatedVideos(page = 1, titleId?: string): Promise<Rela
         titleName,
         titleCover: item.coverImage?.extraLarge || item.coverImage?.large || '',
         titleFormat,
-        releaseYear: item.seasonYear
+        releaseYear: item.seasonYear,
+        genres: item.genres || []
       }];
     });
     return [...videos, ...fromAniList];
