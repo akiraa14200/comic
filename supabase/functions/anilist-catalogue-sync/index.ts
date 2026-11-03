@@ -79,8 +79,9 @@ function titleName(media: Media) {
 }
 function mediaType(media: Media, type: "ANIME" | "MANGA") {
   if (type === "ANIME") return media.format === "MOVIE" ? "Movie" : "Anime";
+  if (media.format === "NOVEL") return "Light Novel";
   if (media.countryOfOrigin === "KR") return "Manhwa";
-  if (media.countryOfOrigin === "CN") return "Manhua";
+  if (["CN", "TW", "HK"].includes(media.countryOfOrigin || "")) return "Manhua";
   return "Manga";
 }
 function statusValue(status: string | null | undefined, type: "ANIME" | "MANGA") {
@@ -203,8 +204,10 @@ Deno.serve(async (req: Request) => {
     const token = authorization.replace(/^Bearer\s+/i, "");
     if (!token) return Response.json({ error: "Sign in as an administrator first." }, { status: 401, headers: corsHeaders });
     const url = Deno.env.get("SUPABASE_URL") || "";
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "";
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const publishableKeys = JSON.parse(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS") || "{}");
+    const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || publishableKeys.default || "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || secretKeys.default || "";
     if (!url || !anonKey || !serviceKey) throw new Error("Supabase function secrets are not configured.");
     const userClient = createClient(url, anonKey, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
     const { data: userData, error: userError } = await userClient.auth.getUser(token);
