@@ -260,6 +260,11 @@ function DetailPage({ user }: { user: User | null }) {
         </div>
       </section>}
 
+      {activeTab === 'overview' && anime.relatedVideos && anime.relatedVideos.length > 0 && <section className="entry-panel related-videos-panel">
+        <div className="entry-section-heading"><span className="eyebrow">FROM THE RYKO CATALOGUE</span><h2>Related videos <small>{anime.relatedVideos.length}</small></h2><p>Videos you added to this title on your website.</p></div>
+        <div className="video-trailer-grid">{anime.relatedVideos.map(video=><a key={video.id} className="video-trailer-card" href={video.videoUrl} target="_blank" rel="noopener noreferrer"><span className="video-trailer-image"><img src={imageOf(anime)} alt="" loading="lazy"/><span className="video-play-icon"><Play size={19} fill="currentColor"/></span></span><span className="video-trailer-title">{video.videoTitle || titleOf(anime)}</span><span className="video-trailer-meta">{video.platform} · {video.creatorName || 'Related video'}</span></a>)}</div>
+      </section>}
+
       {activeTab === 'characters' && <section className="entry-panel characters-panel">
         <div className="entry-section-heading"><span className="eyebrow">CAST & PROFILES</span><h2>Characters <small>{anime.characters?.edges.length || 0}{anime.characters?.pageInfo.hasNextPage?'+':''}</small></h2><p>Select a character to open their profile.</p></div>
         {anime.characters?.edges.length ? <div className="entry-character-grid">{anime.characters.edges.map(({node,role})=><button className="entry-character-card" key={node.id} onClick={()=>setSelectedCharacter(node)}>
