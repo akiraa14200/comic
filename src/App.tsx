@@ -330,7 +330,7 @@ function videoEmbedUrl(video: RelatedVideo) {
       if (!id || !/^[a-zA-Z0-9_-]{6,}$/.test(id)) return '';
       // Match the known-working AniList trailer player exactly. Avoid enablejsapi/origin
       // parameters here: this app only needs plain iframe playback, not the JS player API.
-      return `https://www.youtube-nocookie.com/embed/${id}?rel=0`;
+      return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1&rel=0`;
     }
 
     if (host === 'dai.ly' || host.endsWith('dailymotion.com')) {
@@ -394,7 +394,7 @@ function VideoPage() {
     const playing=playingId===video.id,embed=videoEmbedUrl(video),thumbnail=videoThumbnail(video);
     return <article key={video.id} className={`yt-video-card ${short?'yt-short-card':'yt-standard-card'}`}>
       <div className="yt-thumbnail">
-        {playing&&embed?<iframe key={video.id} src={embed} title={video.videoTitle||video.titleName||'Ryko video'} loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/>:
+        {playing&&embed?<iframe key={video.id} src={embed} title={video.videoTitle||video.titleName||'Ryko video'} loading="lazy" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/>:
         <button className="yt-thumbnail-button" onClick={()=>setPlayingId(playing?null:video.id)} aria-label={playing?'Close player':'Play video'}>
           {thumbnail?<img src={thumbnail} alt={video.videoTitle||video.titleName||'Video thumbnail'} loading="lazy" onError={e=>{e.currentTarget.onerror=null;e.currentTarget.src=video.titleCover||'/placeholder-poster.svg';}}/>:<span className="yt-thumbnail-fallback"/>}
           <span className="yt-play-overlay"><Play size={short?24:30} fill="currentColor"/></span>
