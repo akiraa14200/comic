@@ -34,7 +34,6 @@ export function AdminWorkspace() {
   const [reports,setReports] = useState<ReportRow[]>([]);
   const [socialLinks,setSocialLinks] = useState<any[]>([]);
   const [storage,setStorage] = useState<any[]>([]);
-  const [selectedComment,setSelectedComment] = useState<any>(null);
 
   const verify = useCallback(async () => {
     setChecking(true); setError('');
