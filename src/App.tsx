@@ -49,11 +49,14 @@ function Section({ title, subtitle, items, saved, onSave, to }: { title: string;
 function useLibrary() {
   const [saved, setSaved] = useState<Anime[]>(() => readStore<Anime[]>('kairo-watchlist', []));
   const [history, setHistory] = useState<StoredProgress[]>(() => readStore<StoredProgress[]>('kairo-history', []));
+  const [statuses, setStatuses] = useState<Record<number, 'Watching' | 'Plan to Watch' | 'Completed' | 'Waiting'>>(() => readStore('rykoc-library-status', {}));
   useEffect(() => localStorage.setItem('kairo-watchlist', JSON.stringify(saved)), [saved]);
   useEffect(() => localStorage.setItem('kairo-history', JSON.stringify(history)), [history]);
+  useEffect(() => localStorage.setItem('rykoc-library-status', JSON.stringify(statuses)), [statuses]);
   const toggle = (anime: Anime) => setSaved(old => old.some(item => item.id === anime.id) ? old.filter(item => item.id !== anime.id) : [anime, ...old]);
   const remember = (anime: Anime) => setHistory(old => [{ id: anime.id, title: titleOf(anime), image: imageOf(anime), progress: 0, updated: Date.now() }, ...old.filter(item => item.id !== anime.id)].slice(0, 20));
-  return { saved, history, toggle, remember };
+  const setLibraryStatus = (id: number, status: 'Watching' | 'Plan to Watch' | 'Completed' | 'Waiting') => setStatuses(old => ({ ...old, [id]: status }));
+  return { saved, history, toggle, remember, statuses, setLibraryStatus };
 }
 
 function Home() {
@@ -71,7 +74,9 @@ function Home() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
-  const hero = trending[0];
+  const [heroIndex, setHeroIndex] = useState(0);
+  const featured = trending.slice(0, 5);
+  const hero = featured[heroIndex] || trending[0];
   return <main className="page-shell">
     {hero && <section className="hero" style={{ backgroundImage: `linear-gradient(90deg, #08090d 3%, rgba(8,9,13,.94) 35%, rgba(8,9,13,.32) 100%), linear-gradient(0deg,#08090d 0%,transparent 55%), url(${hero.bannerImage || imageOf(hero)})` }}>
       <div className="hero-copy"><span className="eyebrow"><Sparkles size={14}/> YOUR NEXT FAVORITE STARTS HERE</span><h1>Find your next<br/><em>anime obsession.</em></h1><p>Explore stories worth getting lost in. Discover trending series, seasonal gems and timeless favorites.</p><div className="hero-actions"><Link className="primary-btn" to={hero ? `/anime/${hero.id}` : '/search'}><Play size={16} fill="currentColor"/> Explore featured</Link><Link className="secondary-btn" to="/search">Browse library <ChevronRight size={16}/></Link></div><div className="hero-featured">{hero && <><span>FEATURED PICK</span><strong>{titleOf(hero)}</strong></>}</div></div>
