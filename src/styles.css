@@ -436,7 +436,9 @@ body{padding-bottom:104px}
 .yt-video-feed{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px 18px}
 .yt-video-card{min-width:0;color:#f5f5f5}
 .yt-thumbnail{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:13px;background:#18181b}
-.yt-thumbnail iframe{width:100%;height:100%;display:block;border:0}
+.yt-thumbnail iframe{position:relative;z-index:1;width:100%;height:100%;display:block;border:0}
+.yt-thumbnail .yt-ambient-glow{position:absolute;z-index:0;inset:-18%;pointer-events:none;aria-hidden:true;background-position:center;background-size:cover;filter:blur(90px) brightness(1.12) saturate(1.55);transform:scale(1.08);opacity:.88;will-change:filter,transform}
+@media(prefers-reduced-motion:reduce){.yt-thumbnail .yt-ambient-glow{filter:blur(42px) brightness(1.04) saturate(1.15);transform:none;will-change:auto}}
 .yt-thumbnail-button{position:absolute;inset:0;width:100%;height:100%;padding:0;border:0;background:#111;cursor:pointer;color:white}
 .yt-thumbnail-button img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .25s}
 .yt-video-card:hover .yt-thumbnail-button img{transform:scale(1.025)}
