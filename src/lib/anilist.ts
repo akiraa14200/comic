@@ -52,24 +52,6 @@ const fields = `
   nextAiringEpisode { episode airingAt }
   trailer { id site }
 `;
-// Full detail selection retained from the known-good #165 build.
-const detailFields = `
-  ${fields}
-  countryOfOrigin source synonyms startDate { year month day }
-  staff(sort: RELEVANCE, perPage: 35) { edges { role node { name { full } } } }
-  externalLinks { url site type }
-  characters(page: 1, perPage: 50, sort: ROLE) {
-    pageInfo { currentPage hasNextPage }
-    edges {
-      role
-      node {
-        id name { full native alternative } image { large medium }
-        description(asHtml: false) gender age dateOfBirth { year month day }
-        siteUrl favourites
-      }
-    }
-  }
-`;
 type AniListResponse<T> = { data?: T; errors?: { message?: string }[] };
 const memoryCache = new Map<string, { expires: number; value: unknown }>();
 const inFlightRequests = new Map<string, Promise<unknown>>();
@@ -216,29 +198,38 @@ export async function searchMedia(
 
 export async function getAniListMediaById(id: number, mediaType: 'ANIME' | 'MANGA' = 'ANIME'): Promise<Anime | null> {
   if (!Number.isInteger(id) || id <= 0) return null;
+
+  // Load the essential entry first. Optional fields are deliberately isolated
+  // so one unsupported/temporarily failing field cannot break Anime or Manga.
   const data = await query<{ Media: Anime | null }>(
-    `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { ${detailFields} } }`,
+    `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { ${fields} source synonyms startDate { year month day } } }`,
     { id, type: mediaType },
     DETAIL_CACHE_TTL
   );
   const media = data.Media;
   if (!media) return null;
 
-  // Keep essential title/cover fields independent from optional cast/staff fields.
-  // A single optional GraphQL field must never make the whole detail page disappear.
-  const [extras, characters] = await Promise.allSettled([
-    query<{ Media: Pick<Anime, 'staff' | 'externalLinks'> | null }>(
-      `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { staff(sort: RELEVANCE, perPage: 35) { edges { role node { name { full } } } } externalLinks { url site type } } }`,
+  const [staffResult, linksResult, charactersResult] = await Promise.allSettled([
+    query<{ Media: Pick<Anime, 'staff'> | null }>(
+      `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { staff(sort: RELEVANCE, perPage: 35) { edges { role node { name { full } } } } } }`,
+      { id, type: mediaType }, DETAIL_CACHE_TTL
+    ),
+    query<{ Media: Pick<Anime, 'externalLinks'> | null }>(
+      `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { externalLinks { url site type } } }`,
       { id, type: mediaType }, DETAIL_CACHE_TTL
     ),
     getMediaCharacters(id, 1, mediaType)
   ]);
-  if (extras.status === 'fulfilled' && extras.value.Media) {
-    media.staff = extras.value.Media.staff;
-    media.externalLinks = extras.value.Media.externalLinks;
-  }
-  if (characters.status === 'fulfilled') media.characters = characters.value;
+
+  if (staffResult.status === 'fulfilled') media.staff = staffResult.value.Media?.staff || { edges: [] };
+  else media.staff = { edges: [] };
+
+  if (linksResult.status === 'fulfilled') media.externalLinks = linksResult.value.Media?.externalLinks || [];
+  else media.externalLinks = [];
+
+  if (charactersResult.status === 'fulfilled') media.characters = charactersResult.value;
   else media.characters = { pageInfo: { currentPage: 1, hasNextPage: false }, edges: [] };
+
   return media;
 }
 
