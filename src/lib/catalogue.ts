@@ -311,18 +311,26 @@ export async function getAnime(id: string): Promise<Anime | null> {
     let localRow: TitleRow | null = null;
     let remoteAnime: Anime | null = null;
     if (isAniListId) {
-      const numericId = Number(id.replace(/^anilist-[am]-/, ''));
-      if (!Number.isInteger(numericId) || numericId <= 0) return null;
-      try {
-        const remote = await getAniListMediaById(numericId, manga ? 'MANGA' : 'ANIME');
-        if (remote) remoteAnime = mapAniListMedia(remote);
-      } catch (error) {
-        console.warn('AniList detail lookup failed; checking local catalogue.', error);
+      // Match the #165 detail path: an AniList card must be resolved by its
+      // original provider ID and media type. Never swallow an AniList error
+      // and turn it into a misleading "not found" result.
+      const match = id.match(/^anilist-([am])-(\\d+)$/);
+      if (!match) throw new Error(`Invalid AniList entry ID: ${id}`);
+      const numericId = Number(match[2]);
+      if (!Number.isSafeInteger(numericId) || numericId <= 0) {
+        throw new Error(`Invalid AniList media ID: ${match[2]}`);
       }
+      const remote = await getAniListMediaById(numericId, match[1] === 'm' ? 'MANGA' : 'ANIME');
+      remoteAnime = remote ? mapAniListMedia(remote) : null;
+
+      // Local admin overrides are optional enrichment, never a requirement
+      // for an AniList-backed entry to open.
       const { data, error } = await supabase.from('titles').select('*').eq('anilist_id', numericId).maybeSingle();
-      if (error) console.warn('Local AniList ID fallback lookup failed:', error.message);
+      if (error) console.warn('Local AniList ID enrichment unavailable:', error.message);
       localRow = (data || null) as TitleRow | null;
       if (!localRow) return remoteAnime;
+      if (!remoteAnime) return mapTitle(localRow);
+
     } else {
       const { data, error } = await supabase.from('titles').select('*').eq('id', id).maybeSingle();
       throwIf(error);
