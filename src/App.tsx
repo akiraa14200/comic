@@ -481,7 +481,7 @@ function DetailPage({ user }: { user: User | null }) {
 /** Same markup as before; only adds the decorative ambient glow behind it. */
 function TrailerFrame({ trailerId, title }: { trailerId: string; title: string }) {
   const frameRef = useRef<HTMLDivElement>(null);
-  useAmbientGlow(frameRef, true, { frames: youtubeAmbientFrames(trailerId), durationHint: 100 });
+  useAmbientGlow(frameRef, true, { frames: youtubeAmbientFrames(trailerId) });
   return <div ref={frameRef} className="entry-trailer-frame"><iframe src={`https://www.youtube-nocookie.com/embed/${trailerId}?rel=0`} title={title} allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/></div>;
 }
 
@@ -706,7 +706,7 @@ function LazyVideoCard({ video, short, playing, onPlay, saved = false, onToggleS
   const thumbnail = videoThumbnail(video);
   const thumbRef = useRef<HTMLDivElement>(null);
   const ambientFrames = useMemo(() => { const yt = youtubeAmbientFrames(youtubeIdOf(video)); return yt.length ? yt : [thumbnail].filter(Boolean); }, [video.videoUrl, thumbnail]);
-  useAmbientGlow(thumbRef, nearViewport && playing && !!embed, { frames: ambientFrames, assumePlaying: true, durationHint: short ? 40 : video.id.startsWith('anilist-trailer') ? 100 : 180 });
+  useAmbientGlow(thumbRef, nearViewport && playing && !!embed, { frames: ambientFrames, assumePlaying: true });
   const moreRef = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const tabActive = useTabActive();

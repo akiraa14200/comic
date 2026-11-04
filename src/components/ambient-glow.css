@@ -18,12 +18,19 @@
   width:100%;
   height:100%;
   transform:scale(var(--ambient-scale,1)) translateZ(0);
-  filter:blur(var(--ambient-blur,40px)) saturate(var(--ambient-saturation,1.7)) brightness(var(--ambient-brightness,1.15));
+  filter:blur(var(--ambient-blur,40px)) saturate(var(--ambient-saturation,1.7)) brightness(var(--ambient-brightness,1.15)) contrast(1.08);
   will-change:transform,opacity;
+}
+/* "Live" breathing while the video plays, so the light never looks frozen between frames. */
+.ambient-glow.is-live .ambient-glow-canvas{animation:ambient-breathe 7s ease-in-out infinite}
+@keyframes ambient-breathe{
+  0%,100%{transform:scale(var(--ambient-scale,1)) translateZ(0);opacity:1}
+  50%{transform:scale(calc(var(--ambient-scale,1) * 1.05)) translateZ(0);opacity:.82}
 }
 /* Prevent the bleed from creating horizontal page scroll on narrow screens
    (overflow-x: clip does not create a scroll container, so sticky headers keep working). */
 body{overflow-x:clip}
 @media(prefers-reduced-motion:reduce){
   .ambient-glow{transition:none}
+  .ambient-glow.is-live .ambient-glow-canvas{animation:none}
 }
