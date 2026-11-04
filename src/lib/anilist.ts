@@ -15,6 +15,7 @@ export type AnimeStaff = { role: string; node: { name: { full?: string } } };
 export type AnimeExternalLink = { url: string; site: string; type?: string };
 export type Anime = {
   id: number;
+  type?: 'ANIME' | 'MANGA';
   title: { romaji?: string; english?: string; native?: string };
   description?: string;
   coverImage: { extraLarge?: string; large?: string; color?: string };
@@ -47,18 +48,18 @@ export type Anime = {
 import { supabase } from './supabase';
 const endpoint = 'https://graphql.anilist.co';
 const fields = `
-  id title { romaji english native } description(asHtml: false)
-  coverImage { extraLarge large color } bannerImage averageScore episodes
+  id type title { romaji english native } description(asHtml: false)
+  coverImage { extraLarge large color } bannerImage averageScore episodes chapters volumes
   status seasonYear format genres duration countryOfOrigin siteUrl
   studios(isMain: true) { nodes { name } }
   nextAiringEpisode { episode airingAt }
   trailer { id site }
 `;
 const mangaDetailFields = `
-  id title { romaji english native } description(asHtml: false)
-  coverImage { extraLarge large color } bannerImage averageScore
+  id type title { romaji english native } description(asHtml: false)
+  coverImage { extraLarge large color } bannerImage averageScore episodes chapters volumes
   status seasonYear format genres countryOfOrigin siteUrl
-  chapters volumes
+  studios(isMain: true) { nodes { name } } duration nextAiringEpisode { episode airingAt } trailer { id site }
 `;
 const animeDetailFields = `
   ${fields}
@@ -212,28 +213,32 @@ export async function getAniListMediaById(id: number, mediaType: 'ANIME' | 'MANG
 
   // Load the essential entry first. Optional fields are deliberately isolated
   // so one unsupported/temporarily failing field cannot break Anime or Manga.
+  // AniList media IDs are globally unique. Resolve by ID alone so an
+  // incorrectly inferred ANIME/MANGA card label cannot turn a real entry
+  // into Media: null. The returned record supplies the authoritative type.
   const data = await query<{ Media: Anime | null }>(
-    `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { ${mediaType === 'MANGA' ? mangaDetailFields : animeDetailFields} } }`,
-    { id, type: mediaType },
+    `query($id: Int!) { Media(id: $id) { ${fields} chapters volumes type } }`,
+    { id },
     DETAIL_CACHE_TTL
   );
   const media = data.Media;
   if (!media) return null;
+  const actualMediaType = media.type === 'MANGA' ? 'MANGA' : media.type === 'ANIME' ? 'ANIME' : mediaType;
 
   const [staffResult, linksResult, factsResult, charactersResult] = await Promise.allSettled([
     query<{ Media: Pick<Anime, 'staff'> | null }>(
       `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { staff(sort: RELEVANCE, perPage: 35) { edges { role node { name { full } } } } } }`,
-      { id, type: mediaType }, DETAIL_CACHE_TTL
+      { id, type: actualMediaType }, DETAIL_CACHE_TTL
     ),
     query<{ Media: Pick<Anime, 'externalLinks'> | null }>(
       `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { externalLinks { url site type } } }`,
-      { id, type: mediaType }, DETAIL_CACHE_TTL
+      { id, type: actualMediaType }, DETAIL_CACHE_TTL
     ),
     query<{ Media: Pick<Anime, 'source' | 'synonyms' | 'startDate'> | null }>(
       `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { source synonyms startDate { year month day } } }`,
-      { id, type: mediaType }, DETAIL_CACHE_TTL
+      { id, type: actualMediaType }, DETAIL_CACHE_TTL
     ),
-    getMediaCharacters(id, 1, mediaType)
+    getMediaCharacters(id, 1, actualMediaType)
   ]);
 
   if (staffResult.status === 'fulfilled') media.staff = staffResult.value.Media?.staff || { edges: [] };
