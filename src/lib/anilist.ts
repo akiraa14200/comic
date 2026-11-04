@@ -21,6 +21,8 @@ export type Anime = {
   bannerImage?: string;
   averageScore?: number;
   episodes?: number;
+  chapters?: number;
+  volumes?: number;
   status?: string;
   seasonYear?: number;
   format?: string;
@@ -51,6 +53,15 @@ const fields = `
   studios(isMain: true) { nodes { name } }
   nextAiringEpisode { episode airingAt }
   trailer { id site }
+`;
+const mangaDetailFields = `
+  id title { romaji english native } description(asHtml: false)
+  coverImage { extraLarge large color } bannerImage averageScore
+  status seasonYear format genres countryOfOrigin siteUrl
+  chapters volumes
+`;
+const animeDetailFields = `
+  ${fields}
 `;
 type AniListResponse<T> = { data?: T; errors?: { message?: string }[] };
 const memoryCache = new Map<string, { expires: number; value: unknown }>();
@@ -202,7 +213,7 @@ export async function getAniListMediaById(id: number, mediaType: 'ANIME' | 'MANG
   // Load the essential entry first. Optional fields are deliberately isolated
   // so one unsupported/temporarily failing field cannot break Anime or Manga.
   const data = await query<{ Media: Anime | null }>(
-    `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { ${fields} } }`,
+    `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { ${mediaType === 'MANGA' ? mangaDetailFields : animeDetailFields} } }`,
     { id, type: mediaType },
     DETAIL_CACHE_TTL
   );
