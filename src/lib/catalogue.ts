@@ -317,43 +317,47 @@ function findCachedCatalogueEntry(id: string): Anime | null {
 export async function getAnime(id: string): Promise<Anime | null> {
   if (!id) return null;
   return cached(`detail:${id}`, async () => {
-    const isAniListId = id.startsWith('anilist-a-') || id.startsWith('anilist-m-');
+    const aniListMatch = id.match(/^anilist-([am])-(\\d+)$/);
     let localRow: TitleRow | null = null;
     let remoteAnime: Anime | null = null;
-    if (isAniListId) {
-      // Match the #165 detail path: an AniList card must be resolved by its
-      // original provider ID and media type. Never swallow an AniList error
-      // and turn it into a misleading "not found" result.
-      const match = id.match(/^anilist-([am])-(\d+)$/);
-      if (!match) throw new Error(`Invalid AniList entry ID: ${id}`);
-      const numericId = Number(match[2]);
+
+    if (aniListMatch) {
+      // Preserve the successful catalogue architecture: resolve provider IDs
+      // directly through AniList first. Supabase is only an optional source of
+      // admin overrides and must never decide whether a provider entry opens.
+      const numericId = Number(aniListMatch[2]);
       if (!Number.isSafeInteger(numericId) || numericId <= 0) {
-        throw new Error(`Invalid AniList media ID: ${match[2]}`);
+        throw new Error(`Invalid AniList media ID: ${aniListMatch[2]}`);
       }
+      const mediaType = aniListMatch[1] === 'm' ? 'MANGA' : 'ANIME';
       try {
-        const remote = await getAniListMediaById(numericId, match[1] === 'm' ? 'MANGA' : 'ANIME');
+        const remote = await getAniListMediaById(numericId, mediaType);
         remoteAnime = remote ? mapAniListMedia(remote) : null;
       } catch (error) {
-        console.warn('AniList detail lookup failed; checking the already-loaded catalogue card.', error);
+        console.warn('AniList detail lookup failed; checking the loaded catalogue cache.', error);
       }
       remoteAnime = remoteAnime || findCachedCatalogueEntry(id);
 
-      // Local admin overrides are optional enrichment, never a requirement
-      // for an AniList-backed entry to open.
-      const { data, error } = await supabase.from('titles').select('*').eq('anilist_id', numericId).maybeSingle();
-      if (error) console.warn('Local AniList ID enrichment unavailable:', error.message);
-      localRow = (data || null) as TitleRow | null;
+      // Local rows customize covers, banners and trailers. A Supabase outage
+      // must not turn a valid AniList title into an unavailable detail page.
+      try {
+        const { data, error } = await supabase
+          .from('titles').select('*').eq('anilist_id', numericId).maybeSingle();
+        if (error) throw error;
+        localRow = (data || null) as TitleRow | null;
+      } catch (error) {
+        console.warn('Optional local title overrides unavailable:', error);
+      }
+
       if (!localRow) return remoteAnime;
       if (!remoteAnime) return mapTitle(localRow);
-
     } else {
+      // Locally-created admin entries continue to use their database UUID.
       const { data, error } = await supabase.from('titles').select('*').eq('id', id).maybeSingle();
       throwIf(error);
       localRow = (data || null) as TitleRow | null;
       if (!localRow) return null;
 
-      // Home/Browse can open a locally stored UUID even when that row is linked
-      // to AniList. Resolve its provider ID too, just like a direct AniList card.
       const linkedAniListId = Number(localRow.anilist_id);
       if (Number.isInteger(linkedAniListId) && linkedAniListId > 0) {
         try {
@@ -384,6 +388,7 @@ export async function getAnime(id: string): Promise<Anime | null> {
     } : localAnime;
     anime.id = id;
     anime.anilistId = remoteAnime?.anilistId || localAnime.anilistId;
+
     const localEdges: NonNullable<Anime['characters']>['edges'] = [];
     try {
       const { data: characters, error: characterError } = await supabase
@@ -401,28 +406,30 @@ export async function getAnime(id: string): Promise<Anime | null> {
       console.warn('Local character enrichment unavailable; continuing with title metadata.', error);
     }
 
-    let remote = emptyCharacters();
-    if (anime.anilistId) {
+    // AniList detail responses already include their character page. Reuse it
+    // rather than issuing another identical request; only fetch if absent.
+    let remoteCharacters = remoteAnime?.characters || emptyCharacters();
+    if (anime.anilistId && !remoteAnime?.characters) {
       try {
-        remote = await getMediaCharacters(anime.anilistId, 1, isMangaTitle(anime.format) ? 'MANGA' : 'ANIME');
+        remoteCharacters = await getMediaCharacters(
+          anime.anilistId, 1, isMangaTitle(anime.format) ? 'MANGA' : 'ANIME'
+        );
       } catch (error) {
         console.warn('AniList character enrichment unavailable; keeping catalogue characters.', error);
       }
     }
     const seen = new Set<number>();
     anime.characters = {
-      pageInfo: remote.pageInfo,
-      edges: [...localEdges, ...remote.edges].filter(edge => {
+      pageInfo: remoteCharacters.pageInfo,
+      edges: [...localEdges, ...remoteCharacters.edges].filter(edge => {
         if (seen.has(edge.node.id)) return false;
-        seen.add(edge.node.id); return true;
+        seen.add(edge.node.id);
+        return true;
       })
     };
-
-
     return anime;
   }, DETAIL_TTL);
 }
-
 export async function getAnimeCharacters(id: string, page: number): Promise<NonNullable<Anime['characters']>> {
   if (!id || !Number.isInteger(page) || page < 1) return emptyCharacters(Math.max(1, page || 1));
   const anime = await getAnime(id);
