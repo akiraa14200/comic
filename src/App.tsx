@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useLocation, type Location } from 'react-router-dom';
-import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft } from 'lucide-react';
+import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft, Shuffle, Minus, Plus, Settings, Trash2, Clock, BookmarkPlus, BookmarkCheck } from 'lucide-react';
 // The application UI and page components are defined below.
 import { Anime, AnimeCharacter, getAnime, peekAnime, rememberPreviews, applyCachedVideoMetadata, enrichVideoMetadataProgressive, getAnimeCharacters, getPopular, getPopularManga, getSeasonal, getTrending, getTrendingManga, getRelatedVideos, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
 import type { User } from '@supabase/supabase-js';
@@ -14,6 +14,9 @@ import { useAmbientGlow } from './components/AmbientGlow';
 import { youtubeAmbientFrames } from './lib/ambient';
 import { RichText } from './components/RichText';
 import { readPersisted, writePersisted } from './lib/persist';
+import { isAmbientEnabled, setAmbientEnabled } from './lib/ambient';
+import { ToastHost, OfflineBanner, ShareButton, formatCountdown, useNow, showToast, readRecentSearches, pushRecentSearch, clearRecentSearches } from './components/Extras';
+import './components/extras.css';
 
 /** Calls onReach when the returned element scrolls near the viewport (infinite loading). */
 function useNearViewport(onReach: () => void, enabled: boolean) {
@@ -71,6 +74,7 @@ function AnimeCard({ anime, onSave, saved }: { anime: Anime; onSave: (anime: Ani
       <img src={imageOf(anime)} alt={titleOf(anime)} loading="lazy" decoding="async"/>
       <span className="poster-format">{anime.format || 'ANIME'}</span>
       {anime.averageScore ? <span className="poster-score"><Star size={12} fill="currentColor"/> {(anime.averageScore / 10).toFixed(1)}</span> : null}
+      {anime.nextAiringEpisode?.airingAt && anime.nextAiringEpisode.airingAt * 1000 > Date.now() ? <span className="poster-airing"><Clock size={11}/> EP {anime.nextAiringEpisode.episode} · {formatCountdown(anime.nextAiringEpisode.airingAt)}</span> : null}
     </Link>
     <div className="card-meta"><div className="card-title-row"><Link to={`/anime/${anime.id}`} className="card-title">{titleOf(anime)}</Link><button className={saved ? 'save-mini saved' : 'save-mini'} onClick={() => onSave(anime)} aria-label={saved ? 'Remove from watchlist' : 'Add to watchlist'}><Bookmark size={15} fill={saved ? 'currentColor' : 'none'}/></button></div><p>{anime.seasonYear || 'Year unknown'} <span>·</span> {anime.episodes ? `${anime.episodes} eps` : 'Ongoing'}</p></div>
   </article>;
@@ -85,6 +89,8 @@ function useLibrary() {
   const [saved, setSaved] = useState<Anime[]>(() => readStore<Anime[]>('kairo-watchlist', []));
   const [history, setHistory] = useState<StoredProgress[]>(() => readStore<StoredProgress[]>('kairo-history', []));
   const [statuses, setStatuses] = useState<Record<string, 'Watching' | 'Plan to Watch' | 'Completed' | 'Waiting'>>(() => readStore('rykoc-library-status', {}));
+  const [progress, setProgressMap] = useState<Record<string, number>>(() => readStore('rykoc-library-progress', {}));
+  const [savedVideos, setSavedVideos] = useState<RelatedVideo[]>(() => readStore<RelatedVideo[]>('rykoc-saved-videos', []));
   // Several pages stay mounted at once (tab keep-alive), so each copy of this hook
   // writes only real changes and picks up changes made by the others.
   const persist = (key: string, value: unknown) => {
@@ -96,14 +102,18 @@ function useLibrary() {
   useEffect(() => persist('kairo-watchlist', saved), [saved]);
   useEffect(() => persist('kairo-history', history), [history]);
   useEffect(() => persist('rykoc-library-status', statuses), [statuses]);
-  const current = useRef({ saved, history, statuses });
-  current.current = { saved, history, statuses };
+  useEffect(() => persist('rykoc-library-progress', progress), [progress]);
+  useEffect(() => persist('rykoc-saved-videos', savedVideos), [savedVideos]);
+  const current = useRef({ saved, history, statuses, progress, savedVideos });
+  current.current = { saved, history, statuses, progress, savedVideos };
   useEffect(() => {
     const changed = (key: string, value: unknown) => { const raw = localStorage.getItem(key); return raw !== null && raw !== JSON.stringify(value); };
     const sync = () => {
       if (changed('kairo-watchlist', current.current.saved)) setSaved(readStore<Anime[]>('kairo-watchlist', []));
       if (changed('kairo-history', current.current.history)) setHistory(readStore<StoredProgress[]>('kairo-history', []));
       if (changed('rykoc-library-status', current.current.statuses)) setStatuses(readStore('rykoc-library-status', {}));
+      if (changed('rykoc-library-progress', current.current.progress)) setProgressMap(readStore('rykoc-library-progress', {}));
+      if (changed('rykoc-saved-videos', current.current.savedVideos)) setSavedVideos(readStore<RelatedVideo[]>('rykoc-saved-videos', []));
     };
     window.addEventListener('rykoc-library-change', sync);
     window.addEventListener('storage', sync);
@@ -112,7 +122,13 @@ function useLibrary() {
   const toggle = (anime: Anime) => setSaved(old => old.some(item => item.id === anime.id) ? old.filter(item => item.id !== anime.id) : [anime, ...old]);
   const remember = (anime: Anime) => setHistory(old => [{ id: anime.id, title: titleOf(anime), image: imageOf(anime), progress: 0, updated: Date.now() }, ...old.filter(item => item.id !== anime.id)].slice(0, 20));
   const setLibraryStatus = (id: string, status: 'Watching' | 'Plan to Watch' | 'Completed' | 'Waiting') => setStatuses(old => ({ ...old, [id]: status }));
-  return { saved, history, toggle, remember, statuses, setLibraryStatus };
+  const setProgress = (id: string, value: number, max?: number) => setProgressMap(old => ({ ...old, [id]: Math.max(0, Math.min(max && max > 0 ? max : 9999, Math.round(value))) }));
+  const toggleVideo = (video: RelatedVideo) => setSavedVideos(old => {
+    const exists = old.some(item => item.id === video.id);
+    showToast(exists ? 'Removed from Watch later' : 'Saved to Watch later');
+    return exists ? old.filter(item => item.id !== video.id) : [video, ...old].slice(0, 200);
+  });
+  return { saved, history, toggle, remember, statuses, setLibraryStatus, progress, setProgress, savedVideos, toggleVideo };
 }
 
 type HomeSnapshot = { trending: Anime[]; popular: Anime[]; seasonal: Anime[]; trendingManga: Anime[]; popularManga: Anime[] };
@@ -192,6 +208,10 @@ function SearchPage() {
   const [genre, setGenre] = useState('');
   const [status, setStatus] = useState('');
   const [format, setFormat] = useState('');
+  const sortFromParam = (value: string | null) => value === 'trending' ? 'TRENDING_DESC' : value === 'score' ? 'SCORE_DESC' : value === 'newest' ? 'START_DATE_DESC' : value === 'popular' ? 'POPULARITY_DESC' : '';
+  const [sort, setSort] = useState(() => sortFromParam(params.get('sort')));
+  const [recent, setRecent] = useState<string[]>(() => readRecentSearches());
+  const navigate = useNavigate();
   const [items, setItems] = useState<Anime[]>([]);
   const [busy, setBusy] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -199,25 +219,38 @@ function SearchPage() {
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState('');
   const { saved, toggle } = useLibrary();
-  useEffect(() => { setTerm(params.get('q') || ''); setFormat(params.get('format') || ''); }, [location.search]);
+  useEffect(() => { setTerm(params.get('q') || ''); setFormat(params.get('format') || ''); if (params.has('sort')) setSort(sortFromParam(params.get('sort'))); }, [location.search]);
+  // Remember a search once the user pauses typing and it returned results.
+  useEffect(() => {
+    if (!term.trim() || busy || !items.length) return;
+    const timer = window.setTimeout(() => setRecent(pushRecentSearch(term)), 1500);
+    return () => window.clearTimeout(timer);
+  }, [term, busy, items.length]);
+  const surprise = () => {
+    const pool = items.length ? items : [];
+    if (!pool.length) { showToast('Nothing loaded yet'); return; }
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    rememberPreviews([pick]);
+    navigate(`/anime/${pick.id}`);
+  };
   useEffect(() => {
     let active = true;
     const timer = window.setTimeout(() => {
       setBusy(true); setError(''); setPage(1); setHasMore(true);
-      searchAnime(term.trim(), 1, genre || undefined, status || undefined, format || undefined)
+      searchAnime(term.trim(), 1, genre || undefined, status || undefined, format || undefined, sort || undefined)
         .then(data => { if (active) { setItems(data); setHasMore(data.length === 50); } })
         .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Search failed.'); })
         .finally(() => { if (active) setBusy(false); });
     }, 450);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [term, genre, status, format]);
+  }, [term, genre, status, format, sort]);
 
   const loadMore = async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true); setError('');
     const next = page + 1;
     try {
-      const data = await searchAnime(term.trim(), next, genre || undefined, status || undefined, format || undefined);
+      const data = await searchAnime(term.trim(), next, genre || undefined, status || undefined, format || undefined, sort || undefined);
       setItems(old => { const ids = new Set(old.map(item => item.id)); return [...old, ...data.filter(item => !ids.has(item.id))]; });
       setPage(next); setHasMore(data.length === 50);
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not load more titles.'); }
@@ -229,9 +262,11 @@ function SearchPage() {
     <div className="filter-bar browse-filters"><label className="large-search"><Search size={19}/><input value={term} onChange={e => setTerm(e.target.value)} placeholder="Search titles, series, stories..." autoComplete="off"/></label>
       <div className="browse-filter-selects"><label className="genre-select"><span>Genre</span><select aria-label="Filter by genre" value={genre} onChange={e => setGenre(e.target.value)}><option value="">All genres</option>{genres.map(g => <option key={g}>{g}</option>)}</select></label>
       <label className="genre-select"><span>Status</span><select aria-label="Filter by status" value={status} onChange={e=>setStatus(e.target.value)}><option value="">Any status</option><option value="RELEASING">Airing</option><option value="FINISHED">Finished</option><option value="NOT_YET_RELEASED">Upcoming</option><option value="HIATUS">Hiatus</option></select></label>
-      <label className="genre-select"><span>Format</span><select aria-label="Filter by format" value={format} onChange={e=>setFormat(e.target.value)}><option value="">Any format</option><option value="Anime">Anime</option><option value="Manga">Manga</option><option value="Manhwa">Manhwa</option><option value="Manhua">Manhua</option><option value="Movie">Movie</option><option value="TV Series">TV Series</option><option value="Light Novel">Light Novel</option><option value="Web Novel">Web Novel</option></select></label></div>
+      <label className="genre-select"><span>Format</span><select aria-label="Filter by format" value={format} onChange={e=>setFormat(e.target.value)}><option value="">Any format</option><option value="Anime">Anime</option><option value="Manga">Manga</option><option value="Manhwa">Manhwa</option><option value="Manhua">Manhua</option><option value="Movie">Movie</option><option value="TV Series">TV Series</option><option value="Light Novel">Light Novel</option><option value="Web Novel">Web Novel</option></select></label>
+      <label className="genre-select"><span>Sort</span><select aria-label="Sort results" value={sort} onChange={e=>setSort(e.target.value)}><option value="">{term.trim() ? 'Best match' : 'Most popular'}</option><option value="TRENDING_DESC">Trending</option><option value="SCORE_DESC">Top rated</option><option value="START_DATE_DESC">Newest</option><option value="FAVOURITES_DESC">Most favourited</option></select></label></div>
     </div>
-    <div className="browse-results-head"><div className="results-caption">{busy ? 'Updating catalogue…' : `${items.length} AniList titles loaded`}{term && <span> for “{term}”</span>}</div></div>
+    {recent.length > 0 && <div className="recent-searches" aria-label="Recent searches"><span><Clock size={13}/> Recent</span>{recent.map(value => <button key={value} type="button" className={value.toLowerCase()===term.trim().toLowerCase()?'active':''} onClick={()=>setTerm(value)}>{value}</button>)}<button type="button" className="recent-clear" onClick={()=>{clearRecentSearches();setRecent([]);}} aria-label="Clear recent searches"><X size={13}/></button></div>}
+    <div className="browse-results-head"><div className="results-caption">{busy ? 'Updating catalogue…' : `${items.length} AniList titles loaded`}{term && <span> for “{term}”</span>}</div><button type="button" className="secondary-btn surprise-btn" onClick={surprise} disabled={!items.length}><Shuffle size={15}/> Surprise me</button></div>
     {error && <div className="notice">{error}</div>}
     {busy && !items.length ? <div className="anime-grid">{Array.from({length:8},(_,i)=><div className="skeleton-card" key={i}><div className="skeleton-poster"/><div className="skeleton-line"/></div>)}</div> :
       items.length ? <><div className="anime-grid">{items.map(item=><AnimeCard key={item.id} anime={item} saved={saved.some(a=>a.id===item.id)} onSave={toggle}/>)}</div>{hasMore && <div className="load-more-wrap" ref={searchSentinel}><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading more titles…':'Load more titles'}</button></div>}</> :
@@ -281,6 +316,7 @@ function DetailPage({ user }: { user: User | null }) {
   const { saved, toggle, remember } = useLibrary();
   const [showPlayer, setShowPlayer] = useState(false);
   const [source, setSource] = useState('');
+  const now = useNow(30_000);
 
   useEffect(() => {
     let active = true;
@@ -348,11 +384,14 @@ function DetailPage({ user }: { user: User | null }) {
             {anime.averageScore ? <span><Star size={15} fill="currentColor"/> {(anime.averageScore/10).toFixed(1)} / 10</span> : null}
             <span><Play size={14}/> {anime.episodes ?? '—'} episodes</span>
             <span><Clock3 size={14}/> {statusLabel || 'Unknown status'}</span>
+            {anime.nextAiringEpisode?.airingAt && anime.nextAiringEpisode.airingAt * 1000 > now ? <span className="detail-airing"><Clock size={14}/> Episode {anime.nextAiringEpisode.episode} in {formatCountdown(anime.nextAiringEpisode.airingAt, now)}</span> : null}
           </div>
           <div className="genre-tags">{anime.genres?.map(g=><span key={g}>{g}</span>)}</div>
-          <div className="hero-actions">\n            <button className="primary-btn" onClick={start}><Play size={16} fill="currentColor"/> Open player</button>
+          <div className="hero-actions">
+            <button className="primary-btn" onClick={start}><Play size={16} fill="currentColor"/> Open player</button>
             <button className="secondary-btn" onClick={()=>toggle(anime)}>{isSaved ? <Heart size={16} fill="currentColor"/> : <Bookmark size={16}/>} {isSaved ? 'In my list' : 'Add to list'}</button>
             {anime.siteUrl && <a className="secondary-btn" href={anime.siteUrl} target="_blank" rel="noreferrer">AniList <ExternalLink size={14}/></a>}
+            <ShareButton title={titleOf(anime)} url={anime.siteUrl || window.location.href}/>
           </div>
         </div>
       </div>
@@ -448,11 +487,38 @@ function TrailerFrame({ trailerId, title }: { trailerId: string; title: string }
 }
 
 function WatchlistPage() {
-  const { saved, toggle, statuses, setLibraryStatus } = useLibrary();
+  const { saved, toggle, statuses, setLibraryStatus, progress, setProgress, savedVideos, toggleVideo } = useLibrary();
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const tabActive = useTabActive();
+  useEffect(() => { if (!tabActive) setPlayingId(null); }, [tabActive]);
   const groups: Array<'Watching' | 'Plan to Watch' | 'Completed' | 'Waiting'> = ['Watching', 'Plan to Watch', 'Completed', 'Waiting'];
+  const statusOf = (item: Anime) => statuses[item.id] || 'Plan to Watch';
+  const isReading = (item: Anime) => /manga|manhwa|manhua|novel|one_shot|comic/i.test(item.format || '');
+  const totalOf = (item: Anime) => isReading(item) ? (item.chapters || 0) : (item.episodes || 0);
+  const episodesWatched = saved.filter(item => !isReading(item)).reduce((sum, item) => sum + (progress[item.id] || 0), 0);
+  const chaptersRead = saved.filter(isReading).reduce((sum, item) => sum + (progress[item.id] || 0), 0);
+  const bump = (item: Anime, delta: number) => {
+    const total = totalOf(item);
+    const next = Math.max(0, (progress[item.id] || 0) + delta);
+    setProgress(item.id, next, total);
+    if (delta > 0 && statusOf(item) === 'Plan to Watch') setLibraryStatus(item.id, 'Watching');
+    if (total && next >= total && statusOf(item) !== 'Completed') { setLibraryStatus(item.id, 'Completed'); showToast(`${titleOf(item)} marked as completed`); }
+  };
+  const stats = [
+    { label: 'Saved', value: saved.length },
+    ...groups.map(group => ({ label: group, value: saved.filter(item => statusOf(item) === group).length })),
+    { label: 'Episodes watched', value: episodesWatched },
+    { label: 'Chapters read', value: chaptersRead }
+  ];
   return <main className="content-page"><div className="page-heading"><span className="eyebrow">YOUR PERSONAL COLLECTION</span><h1>Your <em>Library.</em></h1><p>Organize saved anime by your watch progress.</p></div>
+    {saved.length > 0 && <div className="library-stats" aria-label="Library statistics">{stats.map(stat => <div key={stat.label}><strong>{stat.value}</strong><span>{stat.label}</span></div>)}</div>}
     {!saved.length ? <div className="empty-state"><Bookmark size={28}/><h3>Your library is waiting</h3><p>Save anime from Home or Browse and they will appear here.</p><Link className="primary-btn" to="/search">Discover anime</Link></div> :
-    groups.map(group => { const entries = saved.filter(item => (statuses[item.id] || 'Plan to Watch') === group); return <section className="section library-group" key={group}><div className="section-head"><div><h2>{group}</h2><p>{entries.length} {entries.length===1?'title':'titles'}</p></div></div>{entries.length ? <div className="anime-grid">{entries.map(item=><article className="anime-card" key={item.id}><Link to={`/anime/${item.id}`} className="poster-wrap"><img src={imageOf(item)} alt={titleOf(item)} loading="lazy"/></Link><div className="card-meta"><Link to={`/anime/${item.id}`} className="card-title">{titleOf(item)}</Link><select aria-label={`Status for ${titleOf(item)}`} value={statuses[item.id] || 'Plan to Watch'} onChange={event=>setLibraryStatus(item.id,event.target.value as typeof groups[number])}>{groups.map(status=><option key={status}>{status}</option>)}</select><button className="library-remove" onClick={()=>toggle(item)}>Remove from library</button></div></article>)}</div> : <p className="library-empty">No titles in this category yet.</p>}</section>; })}
+    groups.map(group => { const entries = saved.filter(item => statusOf(item) === group); return <section className="section library-group" key={group}><div className="section-head"><div><h2>{group}</h2><p>{entries.length} {entries.length===1?'title':'titles'}</p></div></div>{entries.length ? <div className="anime-grid">{entries.map(item=>{ const total = totalOf(item); const done = progress[item.id] || 0; const unit = isReading(item) ? 'Ch' : 'Ep'; return <article className="anime-card" key={item.id}><Link to={`/anime/${item.id}`} className="poster-wrap"><img src={imageOf(item)} alt={titleOf(item)} loading="lazy"/>{total ? <span className="poster-progress" aria-hidden="true"><span style={{width:`${Math.min(100, done / total * 100)}%`}}/></span> : null}</Link><div className="card-meta"><Link to={`/anime/${item.id}`} className="card-title">{titleOf(item)}</Link>
+      <div className="progress-stepper"><button type="button" onClick={()=>bump(item,-1)} disabled={!done} aria-label={`Decrease progress for ${titleOf(item)}`}><Minus size={14}/></button><span>{unit} {done}{total ? ` / ${total}` : ''}</span><button type="button" onClick={()=>bump(item,1)} disabled={!!total && done >= total} aria-label={`Increase progress for ${titleOf(item)}`}><Plus size={14}/></button></div>
+      <select aria-label={`Status for ${titleOf(item)}`} value={statusOf(item)} onChange={event=>setLibraryStatus(item.id,event.target.value as typeof groups[number])}>{groups.map(status=><option key={status}>{status}</option>)}</select><button className="library-remove" onClick={()=>toggle(item)}>Remove from library</button></div></article>; })}</div> : <p className="library-empty">No titles in this category yet.</p>}</section>; })}
+    <section className="section library-group library-videos"><div className="section-head"><div><h2>Watch later</h2><p>{savedVideos.length} {savedVideos.length===1?'video':'videos'} saved from the Video tab</p></div></div>
+      {savedVideos.length ? <div className="yt-video-feed">{savedVideos.map(video => <LazyVideoCard key={video.id} video={video} short={false} playing={playingId===video.id} onPlay={()=>setPlayingId(current=>current===video.id?null:video.id)} saved onToggleSave={()=>toggleVideo(video)}/>)}</div> : <p className="library-empty">Tap the bookmark on any video to keep it here.</p>}
+    </section>
   </main>;
 }
 function videoEmbedUrl(video: RelatedVideo) {
@@ -523,7 +589,7 @@ function detectVideoFormat(url:string) {
     return 'video';
   } catch { return 'video'; }
 }
-function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo; short: boolean; playing: boolean; onPlay: () => void }) {
+function LazyVideoCard({ video, short, playing, onPlay, saved = false, onToggleSave }: { video: RelatedVideo; short: boolean; playing: boolean; onPlay: () => void; saved?: boolean; onToggleSave?: () => void }) {
   const cardRef = useRef<HTMLElementTagNameMap['article'] | null>(null);
   const [nearViewport, setNearViewport] = useState(false);
   useEffect(() => {
@@ -561,6 +627,7 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
       <div className="yt-video-info">
         {video.creatorAvatarUrl?<img className="yt-channel-avatar" src={video.creatorAvatarUrl} alt="" loading="lazy" decoding="async"/>:<span className="yt-channel-avatar yt-avatar-fallback">{(video.creatorName||video.titleName||'R').slice(0,1).toUpperCase()}</span>}
         <div className="yt-video-text"><h3>{(video.videoTitle||video.titleName||'Related video').length>50?(video.videoTitle||video.titleName||'Related video').slice(0,47).trimEnd()+'…':video.videoTitle||video.titleName||'Related video'}</h3><p>{video.creatorName||'Ryko Collection'}</p><p>{video.titleName||'Ryko video catalogue'}</p>{video.actionUrl&&<a className="yt-related" href={video.actionUrl} target="_blank" rel="noopener noreferrer">{video.actionType==='read'?'View title':'Related link'} <ExternalLink size={11}/></a>}</div>
+        {onToggleSave && <button type="button" className={saved ? 'yt-save saved' : 'yt-save'} onClick={onToggleSave} aria-label={saved ? 'Remove from Watch later' : 'Save to Watch later'} aria-pressed={saved}>{saved ? <BookmarkCheck size={18}/> : <BookmarkPlus size={18}/>}</button>}
         <button className="yt-more" onClick={onPlay} aria-label={playing?'Close player':'Play video'}>{playing?<X size={20}/>:<span>•••</span>}</button>
       </div>
     </>}
@@ -580,6 +647,8 @@ function VideoPage() {
   const [category,setCategory]=useState('All');
   const tabActive=useTabActive();
   useEffect(()=>{if(!tabActive)setPlayingId(null);},[tabActive]);
+  const {savedVideos,toggleVideo}=useLibrary();
+  const savedVideoIds=useMemo(()=>new Set(savedVideos.map(video=>video.id)),[savedVideos]);
 
   // Patch titles/channels into cards as each background batch arrives (order never changes).
   const enrich=(list:RelatedVideo[],isActive:()=>boolean)=>{
@@ -697,7 +766,7 @@ function VideoPage() {
   </header>;
 
   const empty=<div className="yt-empty"><Play size={28}/><h3>{term||category!=='All'?'No matching videos':'No videos yet'}</h3><p>Try changing your search or filters.</p><button className="secondary-btn" onClick={()=>{setTerm('');setCategory('All');setFormat('all');}}>Clear filters</button></div>;
-  const videoCard=(video:RelatedVideo,short:boolean)=><LazyVideoCard key={video.id} video={video} short={short} playing={playingId===video.id} onPlay={()=>setPlayingId(current=>current===video.id?null:video.id)}/>;
+  const videoCard=(video:RelatedVideo,short:boolean)=><LazyVideoCard key={video.id} video={video} short={short} playing={playingId===video.id} onPlay={()=>setPlayingId(current=>current===video.id?null:video.id)} saved={savedVideoIds.has(video.id)} onToggleSave={()=>toggleVideo(video)}/>;
 
   return <main className="video-page yt-page">
     {searchBar}
@@ -727,7 +796,7 @@ function BottomNavigation() {
   ];
   return <nav className="bottom-navigation" aria-label="Main navigation">{links.map(item => {
     const active = item.to === '/' ? location.pathname === '/' : location.pathname === item.to;
-    return <Link key={item.to} to={item.to} className={active?'bottom-nav-item active':'bottom-nav-item'} aria-current={active?'page':undefined}>{item.icon}<span>{item.label}</span></Link>;
+    return <Link key={item.to} to={item.to} onClick={event => { if (active) { event.preventDefault(); window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); } }} className={active?'bottom-nav-item active':'bottom-nav-item'} aria-current={active?'page':undefined}>{item.icon}<span>{item.label}</span></Link>;
   })}</nav>;
 }
 
@@ -763,7 +832,32 @@ function AccountPage({ user }: { user: User | null }) {
       <button type="button" className="account-switch" onClick={()=>{setMode(mode==='signin'?'signup':'signin');setMessage('');}}>{mode==='signin'?'New here? Create an account':'Already have an account? Sign in'}</button>
       {message && <p className="account-message">{message}</p>}
     </form>}
+    <AppSettings/>
   </main>;
+}
+
+function AppSettings() {
+  const [ambient, setAmbient] = useState(() => isAmbientEnabled());
+  const [cacheSize, setCacheSize] = useState(0);
+  const measure = () => {
+    let bytes = 0;
+    for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i) || ''; if (key.startsWith('rykoc-cache:')) bytes += (localStorage.getItem(key) || '').length * 2; }
+    setCacheSize(bytes);
+  };
+  useEffect(measure, []);
+  const toggleAmbient = () => { const next = !ambient; setAmbient(next); setAmbientEnabled(next); showToast(next ? 'Ambient mode on' : 'Ambient mode off'); };
+  const clearCache = () => {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i) || ''; if (key.startsWith('rykoc-cache:')) keys.push(key); }
+    keys.forEach(key => localStorage.removeItem(key));
+    measure();
+    showToast('Cached catalogue cleared. Your library is kept.');
+  };
+  return <section className="settings-card" aria-labelledby="settings-title">
+    <h2 id="settings-title"><Settings size={18}/> App settings</h2>
+    <div className="settings-row"><div><strong>Ambient mode</strong><p>Soft light from the video glows behind the player.</p></div><button className={ambient?'toggle active':'toggle'} onClick={toggleAmbient} aria-label="Toggle ambient mode" aria-pressed={ambient}><span/></button></div>
+    <div className="settings-row"><div><strong>Cached catalogue</strong><p>{(cacheSize / 1024).toFixed(0)} KB saved for faster loading. Library, progress and Watch later are not affected.</p></div><button className="secondary-btn" onClick={clearCache}><Trash2 size={15}/> Clear</button></div>
+  </section>;
 }
 
 function PrivacyPage() {
@@ -866,5 +960,5 @@ export default function App() {
     return () => { active = false; };
   }, [user]);
   const signOut = () => { void supabase.auth.signOut(); };
-  return <><Header user={user} isAdmin={isAdmin} onSignOut={signOut}/><TabbedRoutes user={user}/><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer></>;
+  return <><OfflineBanner/><Header user={user} isAdmin={isAdmin} onSignOut={signOut}/><TabbedRoutes user={user}/><BottomNavigation/><ToastHost/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer></>;
 }

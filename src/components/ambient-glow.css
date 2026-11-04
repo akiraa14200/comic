@@ -3,24 +3,34 @@
   position:absolute;
   z-index:-1;              /* behind the player and every control */
   pointer-events:none;
+  contain:layout style;
   opacity:0;
   transition:opacity .8s ease;
+  /* Soft elliptical falloff instead of a hard rectangle; the player sits over the brightest part. */
+  -webkit-mask-image:radial-gradient(ellipse 50% 50% at 50% 45%,#000 52%,rgba(0,0,0,.55) 76%,transparent 100%);
+  mask-image:radial-gradient(ellipse 50% 50% at 50% 45%,#000 52%,rgba(0,0,0,.55) 76%,transparent 100%);
 }
-.ambient-glow.is-ready{opacity:var(--ambient-opacity,.6)}
+.ambient-glow.is-ready{opacity:var(--ambient-opacity,.85)}
 .ambient-glow.is-off{opacity:0!important}
 .ambient-glow-canvas{
   position:absolute;
   inset:0;
   width:100%;
   height:100%;
-  transform:scale(var(--ambient-scale,1.2)) translateZ(0);
-  filter:blur(var(--ambient-blur,90px)) saturate(var(--ambient-saturation,2)) brightness(var(--ambient-brightness,1.1));
-  will-change:transform;
+  transform:scale(var(--ambient-scale,1)) translateZ(0);
+  filter:blur(var(--ambient-blur,40px)) saturate(var(--ambient-saturation,1.7)) brightness(var(--ambient-brightness,1.15)) contrast(1.08);
+  will-change:transform,opacity;
 }
-.ambient-glow{contain:layout style}
+/* "Live" breathing while the video plays, so the light never looks frozen between frames. */
+.ambient-glow.is-live .ambient-glow-canvas{animation:ambient-breathe 7s ease-in-out infinite}
+@keyframes ambient-breathe{
+  0%,100%{transform:scale(var(--ambient-scale,1)) translateZ(0);opacity:1}
+  50%{transform:scale(calc(var(--ambient-scale,1) * 1.05)) translateZ(0);opacity:.82}
+}
 /* Prevent the bleed from creating horizontal page scroll on narrow screens
    (overflow-x: clip does not create a scroll container, so sticky headers keep working). */
 body{overflow-x:clip}
 @media(prefers-reduced-motion:reduce){
   .ambient-glow{transition:none}
+  .ambient-glow.is-live .ambient-glow-canvas{animation:none}
 }

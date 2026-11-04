@@ -27,7 +27,10 @@ export type AmbientOptions = {
   frames?: string[];
   /** Treat an iframe as already playing (e.g. it was opened by a play button with autoplay). */
   assumePlaying?: boolean;
-  blur?: number;        // px, default 90
+  /** Blur radius in px. Default: adaptive, ≈9% of the player width (28–80px) so colours stay vivid on phones. */
+  blur?: number;
+  /** How far the glow spills past each edge, as a fraction of the player size. */
+  spread?: { x?: number; top?: number; bottom?: number };
   opacity?: number;     // default 0.6
   saturation?: number;  // default 2
   brightness?: number;  // default 1.1
@@ -57,14 +60,17 @@ const clips = (style: CSSStyleDeclaration) =>
 
 export function createAmbientGlow(options: AmbientOptions): AmbientHandle {
   const { host, media = null } = options;
-  const blur = options.blur ?? 90;
-  const opacity = options.opacity ?? 0.6;
-  const saturation = options.saturation ?? 2;
-  const brightness = options.brightness ?? 1.1;
-  const scale = options.scale ?? 1.2;
+  const opacity = options.opacity ?? 0.95;
+  const saturation = options.saturation ?? 2.2;
+  const brightness = options.brightness ?? 1.05;
+  const scale = options.scale ?? 1;
+  const spreadX = options.spread?.x ?? 0.1;
+  const spreadTop = options.spread?.top ?? 0.2;
+  const spreadBottom = options.spread?.bottom ?? 0.55;
+  const blurFor = (width: number) => options.blur ?? Math.round(Math.max(28, Math.min(80, width * 0.09)));
   const fps = Math.min(30, options.fps ?? 30);
   const resolution = options.resolution ?? 160;
-  const frameInterval = options.frameInterval ?? 6000;
+  const frameInterval = options.frameInterval ?? 3500;
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
 
   // ----- DOM: glow layer -------------------------------------------------
@@ -74,12 +80,12 @@ export function createAmbientGlow(options: AmbientOptions): AmbientHandle {
   const canvas = document.createElement('canvas');
   canvas.className = 'ambient-glow-canvas';
   glow.appendChild(canvas);
-  glow.style.setProperty('--ambient-blur', `${blur}px`);
   glow.style.setProperty('--ambient-opacity', String(opacity));
   glow.style.setProperty('--ambient-saturation', String(saturation));
   glow.style.setProperty('--ambient-brightness', String(brightness));
   glow.style.setProperty('--ambient-scale', String(scale));
-  const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true } as CanvasRenderingContext2DSettings);
+  // No `desynchronized`: low-latency canvases can stop compositing under CSS filters in Android WebView.
+  const ctx = canvas.getContext('2d', { alpha: false });
 
   // Inside the host if it doesn't clip; otherwise as its previous sibling.
   const hostStyle = getComputedStyle(host);
@@ -112,11 +118,14 @@ export function createAmbientGlow(options: AmbientOptions): AmbientHandle {
 
   let first = true;
   const place = () => {
-    if (inside) { glow.style.inset = '0'; return; }
-    glow.style.left = `${host.offsetLeft}px`;
-    glow.style.top = `${host.offsetTop}px`;
-    glow.style.width = `${host.offsetWidth}px`;
-    glow.style.height = `${host.offsetHeight}px`;
+    const w = host.offsetWidth, h = host.offsetHeight;
+    const left = (inside ? 0 : host.offsetLeft) - w * spreadX;
+    const top = (inside ? 0 : host.offsetTop) - h * spreadTop;
+    glow.style.left = `${left}px`;
+    glow.style.top = `${top}px`;
+    glow.style.width = `${w * (1 + spreadX * 2)}px`;
+    glow.style.height = `${h * (1 + spreadTop + spreadBottom)}px`;
+    glow.style.setProperty('--ambient-blur', `${blurFor(w)}px`);
   };
   const sizeCanvas = (w: number, h: number) => {
     if (!w || !h) return;
@@ -157,7 +166,7 @@ export function createAmbientGlow(options: AmbientOptions): AmbientHandle {
   let rafId = 0, vfcId = 0, sceneTimer = 0;
   let lastDraw = 0;
   const shouldRun = () => enabled && onScreen && pageVisible && playing && !destroyed;
-  const applyEnabled = () => glow.classList.toggle('is-off', !enabled);
+  const applyEnabled = () => { glow.classList.toggle('is-off', !enabled); glow.classList.toggle('is-live', shouldRun()); };
 
   // HTML5 video loop
   const video = media instanceof HTMLVideoElement ? media : null;
@@ -194,6 +203,7 @@ export function createAmbientGlow(options: AmbientOptions): AmbientHandle {
       const img = new Image();
       img.decoding = 'async';
       img.referrerPolicy = 'no-referrer';
+      img.crossOrigin = 'anonymous'; // i.ytimg.com sends CORS headers; keeps the canvas untainted
       img.onload = () => { if (first || img === images[sceneIndex]) drawCover(img, img.naturalWidth, img.naturalHeight, 1); };
       img.src = src;
       images.push(img);

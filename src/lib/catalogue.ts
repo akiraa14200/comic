@@ -33,6 +33,7 @@ export type Anime = {
   studios?: { nodes: { name: string }[] };
   duration?: number;
   siteUrl?: string;
+  chapters?: number;
   nextAiringEpisode?: { episode: number; airingAt: number };
   trailer?: { id: string; site: string };
   trailerUrl?: string;
@@ -173,6 +174,7 @@ const mapAniListMediaRaw = (item: import('./anilist').Anime): Anime => {
     bannerImage: item.bannerImage || '',
     averageScore: item.averageScore,
     episodes: item.episodes,
+    chapters: item.chapters,
     status: item.status || 'Unknown',
     seasonYear: item.seasonYear,
     format,
@@ -281,13 +283,13 @@ export async function getVideoCatalogue(page = 1, genre?: string): Promise<Anime
   if (genre) request = request.contains('genres', [genre]);
   return fetchTitles(request);
 }
-export async function searchAnime(search: string, page = 1, genre?: string, status?: string, format?: string): Promise<Anime[]> {
+export async function searchAnime(search: string, page = 1, genre?: string, status?: string, format?: string, sort?: string): Promise<Anime[]> {
   const mediaType: 'ANIME' | 'MANGA' | undefined =
     ['Manga','Manhwa','Manhua','Light Novel','Web Novel'].includes(format || '') ? 'MANGA' :
     ['Anime','Movie','TV Series'].includes(format || '') ? 'ANIME' : undefined;
   const country = format === 'Manhwa' ? 'KR' : format === 'Manhua' ? 'CN' : undefined;
   const apiFormat = format === 'Movie' ? 'MOVIE' : format === 'TV Series' ? 'TV' : format === 'Light Novel' || format === 'Web Novel' ? 'NOVEL' : undefined;
-  const results = await searchMedia(search, page, genre, status, apiFormat, mediaType, country);
+  const results = await searchMedia(search, page, genre, status, apiFormat, mediaType, country, sort);
   let mapped = results.map(mapAniListMedia);
   return mapped;
 }

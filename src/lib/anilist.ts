@@ -28,6 +28,7 @@ export type Anime = {
   studios?: { nodes: { name: string }[] };
   duration?: number;
   siteUrl?: string;
+  chapters?: number;
   nextAiringEpisode?: { episode: number; airingAt: number };
   trailer?: { id: string; site: string };
   countryOfOrigin?: string;
@@ -45,7 +46,7 @@ export type Anime = {
 const endpoint = 'https://graphql.anilist.co';
 const fields = `
   id title { romaji english native } description(asHtml: false)
-  coverImage { extraLarge large color } bannerImage averageScore episodes
+  coverImage { extraLarge large color } bannerImage averageScore episodes chapters
   status seasonYear format genres duration countryOfOrigin siteUrl
   studios(isMain: true) { nodes { name } }
   nextAiringEpisode { episode airingAt }
@@ -223,8 +224,11 @@ export async function searchMedia(
   status?: string,
   format?: string,
   mediaType?: 'ANIME' | 'MANGA',
-  country?: 'KR' | 'CN'
+  country?: 'KR' | 'CN',
+  sort?: string
 ): Promise<Anime[]> {
+  const validSorts = ['POPULARITY_DESC','TRENDING_DESC','SCORE_DESC','START_DATE_DESC','FAVOURITES_DESC'];
+  const chosenSort = sort && validSorts.includes(sort) ? sort : '';
   const validFormats = ['TV','TV_SHORT','MOVIE','SPECIAL','OVA','ONA','MUSIC','MANGA','NOVEL','ONE_SHOT'];
   const apiFormat = format && validFormats.includes(format) ? format : undefined;
   const data = await query<{ Page: { media: Anime[] } }>(
@@ -241,7 +245,7 @@ export async function searchMedia(
       format: apiFormat,
       type: mediaType,
       country,
-      sort: search.trim() ? ['SEARCH_MATCH'] : ['POPULARITY_DESC']
+      sort: chosenSort ? (search.trim() ? [chosenSort, 'SEARCH_MATCH'] : [chosenSort]) : (search.trim() ? ['SEARCH_MATCH'] : ['POPULARITY_DESC'])
     }
   );
   return data.Page?.media || [];
