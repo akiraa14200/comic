@@ -54,6 +54,7 @@ type TitleRow = {
 type CharacterRow = { id: string; name: string; role?: string; description?: string; image_url?: string };
 const cache = new Map<string, { at: number; value: unknown }>();
 const TTL = 90_000;
+const DETAIL_TTL = 10 * 60_000;
 const hashId = (value: string) => Array.from(value).reduce((h, c) => ((h * 31 + c.charCodeAt(0)) >>> 0), 7);
 const youtubeId = (url = '') => {
   try {
@@ -211,13 +212,13 @@ const mapTitle = (row: TitleRow): Anime => {
   };
 };
 const inFlightCache = new Map<string, Promise<unknown>>();
-async function cached<T>(key: string, load: () => Promise<T>): Promise<T> {
+async function cached<T>(key: string, load: () => Promise<T>, ttl = TTL): Promise<T> {
   const old = cache.get(key);
-  if (old && Date.now() - old.at < TTL) return old.value as T;
+  if (old && Date.now() - old.at < ttl) return old.value as T;
   const pending = inFlightCache.get(key);
   if (pending) return pending as Promise<T>;
   const request = load().then(value => {
-    cache.set(key, { at: Date.now(), value });
+    if (value !== null && value !== undefined) cache.set(key, { at: Date.now(), value });
     if (cache.size > 100) cache.delete(cache.keys().next().value || '');
     return value;
   }).finally(() => inFlightCache.delete(key));
@@ -303,6 +304,16 @@ const emptyCharacters = (page = 1): NonNullable<Anime['characters']> => ({
   pageInfo: { currentPage: page, hasNextPage: false }, edges: []
 });
 
+function findCachedCatalogueEntry(id: string): Anime | null {
+  // Reuse the exact card object already rendered by Home/Browse when the
+  // detail endpoint transiently returns Media: null or cannot be reached.
+  for (const entry of cache.values()) {
+    if (!Array.isArray(entry.value)) continue;
+    const match = (entry.value as Anime[]).find(item => item?.id === id);
+    if (match) return match;
+  }
+  return null;
+}
 export async function getAnime(id: string): Promise<Anime | null> {
   if (!id) return null;
   return cached(`detail:${id}`, async () => {
@@ -319,8 +330,13 @@ export async function getAnime(id: string): Promise<Anime | null> {
       if (!Number.isSafeInteger(numericId) || numericId <= 0) {
         throw new Error(`Invalid AniList media ID: ${match[2]}`);
       }
-      const remote = await getAniListMediaById(numericId, match[1] === 'm' ? 'MANGA' : 'ANIME');
-      remoteAnime = remote ? mapAniListMedia(remote) : null;
+      try {
+        const remote = await getAniListMediaById(numericId, match[1] === 'm' ? 'MANGA' : 'ANIME');
+        remoteAnime = remote ? mapAniListMedia(remote) : null;
+      } catch (error) {
+        console.warn('AniList detail lookup failed; checking the already-loaded catalogue card.', error);
+      }
+      remoteAnime = remoteAnime || findCachedCatalogueEntry(id);
 
       // Local admin overrides are optional enrichment, never a requirement
       // for an AniList-backed entry to open.
@@ -404,7 +420,7 @@ export async function getAnime(id: string): Promise<Anime | null> {
 
 
     return anime;
-  });
+  }, DETAIL_TTL);
 }
 
 export async function getAnimeCharacters(id: string, page: number): Promise<NonNullable<Anime['characters']>> {
