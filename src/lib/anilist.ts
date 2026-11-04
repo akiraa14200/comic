@@ -199,6 +199,15 @@ export async function searchMedia(
   return data.Page?.media || [];
 }
 
+function findCachedAniListMedia(id: number): Anime | null {
+  for (const entry of memoryCache.values()) {
+    const value = entry.value as { Page?: { media?: Anime[] } } | null;
+    const match = value?.Page?.media?.find(item => item?.id === id);
+    if (match) return match;
+  }
+  return null;
+}
+
 export async function getAniListMediaById(id: number, mediaType: 'ANIME' | 'MANGA' = 'ANIME'): Promise<Anime | null> {
   if (!Number.isInteger(id) || id <= 0) return null;
 
@@ -207,13 +216,28 @@ export async function getAniListMediaById(id: number, mediaType: 'ANIME' | 'MANG
   // AniList media IDs are globally unique. Resolve by ID alone so an
   // incorrectly inferred ANIME/MANGA card label cannot turn a real entry
   // into Media: null. The returned record supplies the authoritative type.
-  const data = await query<{ Media: Anime | null }>(
-    `query($id: Int!) { Media(id: $id) { ${fields} } }`,
-    { id },
-    DETAIL_CACHE_TTL
-  );
-  const media = data.Media;
+  let media: Anime | null = null;
+  try {
+    const data = await query<{ Media: Anime | null }>(
+      `query($id: Int!) { Media(id: $id) { ${fields} } }`,
+      { id },
+      DETAIL_CACHE_TTL
+    );
+    media = data.Media || null;
+  } catch (error) {
+    // A catalogue card may already have loaded this exact record. Keep the
+    // detail page usable from that verified response during a transient outage.
+    const cached = findCachedAniListMedia(id);
+    if (!cached) throw error;
+    media = cached;
+  }
+  if (!media) {
+    // AniList occasionally returns an empty detail response while its list
+    // endpoint has already supplied the same globally-unique media ID.
+    media = findCachedAniListMedia(id);
+  }
   if (!media) return null;
+  media.description = media.description || '';
   const actualMediaType = media.type === 'MANGA' ? 'MANGA' : media.type === 'ANIME' ? 'ANIME' : mediaType;
 
   const [staffResult, linksResult, factsResult, charactersResult] = await Promise.allSettled([
