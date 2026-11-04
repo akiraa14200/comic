@@ -59,7 +59,7 @@ type AniListResponse<T> = { data?: T; errors?: { message?: string }[] };
 const memoryCache = new Map<string, { expires: number; value: unknown }>();
 const inFlightRequests = new Map<string, Promise<unknown>>();
 const CACHE_TTL = 10 * 60 * 1000;
-const DETAIL_CACHE_TTL = 30 * 60 * 1000;
+const DETAIL_CACHE_TTL = 6 * 60 * 60 * 1000;
 
 async function queryUncached<T>(queryText: string, variables: Record<string, unknown> = {}, cacheTtl = CACHE_TTL): Promise<T> {
   const cacheKey = JSON.stringify([queryText, variables]);
@@ -240,33 +240,45 @@ export async function getAniListMediaById(id: number, mediaType: 'ANIME' | 'MANG
   media.description = media.description || '';
   const actualMediaType = media.type === 'MANGA' ? 'MANGA' : media.type === 'ANIME' ? 'ANIME' : mediaType;
 
-  const [staffResult, linksResult, factsResult, charactersResult] = await Promise.allSettled([
-    query<{ Media: Pick<Anime, 'staff'> | null }>(
+  // Optional enrichments must never decide whether the entry itself can open.
+  // Start concurrently for speed; retry only failed pieces one-at-a-time to
+  // reduce AniList burst pressure on mobile networks and rate-limited sessions.
+  const optionalQueries = [
+    () => query<{ Media: Pick<Anime, 'staff'> | null }>(
       `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { staff(sort: RELEVANCE, perPage: 35) { edges { role node { name { full } } } } } }`,
       { id, type: actualMediaType }, DETAIL_CACHE_TTL
     ),
-    query<{ Media: Pick<Anime, 'externalLinks'> | null }>(
+    () => query<{ Media: Pick<Anime, 'externalLinks'> | null }>(
       `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { externalLinks { url site type } } }`,
       { id, type: actualMediaType }, DETAIL_CACHE_TTL
     ),
-    query<{ Media: Pick<Anime, 'source' | 'synonyms' | 'startDate'> | null }>(
+    () => query<{ Media: Pick<Anime, 'source' | 'synonyms' | 'startDate'> | null }>(
       `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { source synonyms startDate { year month day } } }`,
       { id, type: actualMediaType }, DETAIL_CACHE_TTL
     ),
-    getMediaCharacters(id, 1, actualMediaType)
-  ]);
+    () => getMediaCharacters(id, 1, actualMediaType)
+  ];
+  const optionalResults = await Promise.allSettled(optionalQueries.map(load => load()));
+  const resolved: (unknown | null)[] = optionalResults.map(result => result.status === 'fulfilled' ? result.value : null);
+  for (let index = 0; index < optionalResults.length; index += 1) {
+    if (optionalResults[index].status === 'fulfilled') continue;
+    try {
+      await new Promise(resolve => window.setTimeout(resolve, 250));
+      resolved[index] = await optionalQueries[index]();
+    } catch {
+      // Keep the corresponding optional field at its safe empty default.
+    }
+  }
 
-  if (staffResult.status === 'fulfilled') media.staff = staffResult.value.Media?.staff || { edges: [] };
-  else media.staff = { edges: [] };
-
-  if (linksResult.status === 'fulfilled') media.externalLinks = linksResult.value.Media?.externalLinks || [];
-  else media.externalLinks = [];
-
-  if (factsResult.status === 'fulfilled' && factsResult.value.Media) Object.assign(media, factsResult.value.Media);
-
-  if (charactersResult.status === 'fulfilled') media.characters = charactersResult.value;
-  else media.characters = { pageInfo: { currentPage: 1, hasNextPage: false }, edges: [] };
-
+  const staff = resolved[0] as { Media?: Pick<Anime, 'staff'> | null } | null;
+  const links = resolved[1] as { Media?: Pick<Anime, 'externalLinks'> | null } | null;
+  const facts = resolved[2] as { Media?: Pick<Anime, 'source' | 'synonyms' | 'startDate'> | null } | null;
+  const characters = resolved[3] as NonNullable<Anime['characters']> | null;
+  media.staff = staff?.Media?.staff || { edges: [] };
+  media.externalLinks = links?.Media?.externalLinks || [];
+  if (facts?.Media) Object.assign(media, facts.Media);
+  media.characters = characters || { pageInfo: { currentPage: 1, hasNextPage: false }, edges: [] };
+  media.description = media.description || '';
   return media;
 }
 
