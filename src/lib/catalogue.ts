@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { searchFallbackMetadata } from './metadata-fallback';
 import { getMediaCharacters, getVideoCatalogue as getAniListAnimeVideos, getMangaVideoCatalogue, getTrendingManga as fetchTrendingManga, getPopularManga as fetchPopularManga, searchMedia, getAniListMediaById, getTrending as fetchAniListTrending, getPopular as fetchAniListPopular } from './anilist';
 
 export type AnimeCharacter = {
@@ -286,32 +287,48 @@ const emptyCharacters = (page = 1): NonNullable<Anime['characters']> => ({
 
 export async function getAnime(id: string): Promise<Anime | null> {
   if (!id) return null;
-  if (id.startsWith('anilist-a-') || id.startsWith('anilist-m-')) {
-    const mediaType = id.startsWith('anilist-m-') ? 'MANGA' : 'ANIME';
-    const numericId = Number(id.slice('anilist-a-'.length));
-    const mangaId = Number(id.slice('anilist-m-'.length));
-    return cached(`detail:${id}`, async () => {
-      const result = await getAniListMediaById(mediaType === 'MANGA' ? mangaId : numericId, mediaType);
-      return result ? mapAniListMedia(result) : null;
-    });
-  }
   return cached(`detail:${id}`, async () => {
-    const { data, error } = await supabase.from('titles').select('*').eq('id', id).maybeSingle();
-    throwIf(error);
-    if (!data) return null;
-    const row = data as TitleRow;
-    const anime = mapTitle(row);
-    const { data: characters, error: characterError } = await supabase
-      .from('characters').select('*').eq('title_id', id).order('created_at').limit(50);
-    throwIf(characterError);
-    const localEdges = ((characters || []) as CharacterRow[]).map(row => ({
-      role: row.role || 'Supporting',
-      node: {
-        id: hashId(row.id), name: { full: row.name },
-        image: { large: row.image_url || '', medium: row.image_url || '' },
-        description: row.description || '', role: row.role || 'Supporting'
+    const isAniListId = id.startsWith('anilist-a-') || id.startsWith('anilist-m-');
+    const manga = id.startsWith('anilist-m-');
+    let localRow: TitleRow | null = null;
+    if (isAniListId) {
+      const numericId = Number(id.replace(/^anilist-[am]-/, ''));
+      if (!Number.isInteger(numericId) || numericId <= 0) return null;
+      try {
+        const remote = await getAniListMediaById(numericId, manga ? 'MANGA' : 'ANIME');
+        if (remote) return mapAniListMedia(remote);
+      } catch (error) {
+        console.warn('AniList detail lookup failed; checking other catalogue providers.', error);
       }
-    }));
+      const { data, error } = await supabase.from('titles').select('*').eq('anilist_id', numericId).maybeSingle();
+      if (error) console.warn('Local AniList ID fallback lookup failed:', error.message);
+      localRow = (data || null) as TitleRow | null;
+      if (!localRow) return null;
+    } else {
+      const { data, error } = await supabase.from('titles').select('*').eq('id', id).maybeSingle();
+      throwIf(error);
+      localRow = (data || null) as TitleRow | null;
+      if (!localRow) return null;
+    }
+
+    const anime = mapTitle(localRow);
+    const localEdges: NonNullable<Anime['characters']>['edges'] = [];
+    try {
+      const { data: characters, error: characterError } = await supabase
+        .from('characters').select('*').eq('title_id', localRow.id).order('created_at').limit(50);
+      if (characterError) throw characterError;
+      ((characters || []) as CharacterRow[]).forEach(row => localEdges.push({
+        role: row.role || 'Supporting',
+        node: {
+          id: hashId(row.id), name: { full: row.name },
+          image: { large: row.image_url || '', medium: row.image_url || '' },
+          description: row.description || '', role: row.role || 'Supporting'
+        }
+      }));
+    } catch (error) {
+      console.warn('Local character enrichment unavailable; continuing with title metadata.', error);
+    }
+
     let remote = emptyCharacters();
     if (anime.anilistId) {
       try {
@@ -321,15 +338,37 @@ export async function getAnime(id: string): Promise<Anime | null> {
       }
     }
     const seen = new Set<number>();
-    const merged = [...localEdges, ...remote.edges].filter(edge => {
-      if (seen.has(edge.node.id)) return false;
-      seen.add(edge.node.id);
-      return true;
-    });
     anime.characters = {
       pageInfo: remote.pageInfo,
-      edges: merged
+      edges: [...localEdges, ...remote.edges].filter(edge => {
+        if (seen.has(edge.node.id)) return false;
+        seen.add(edge.node.id); return true;
+      })
     };
+
+    // Enrich incomplete local records from Jikan, Kitsu and (for manga) MangaDex.
+    if (!anime.description || !imageOf(anime) || !anime.genres?.length) {
+      try {
+        const title = titleOf(anime);
+        const candidates = await searchFallbackMetadata(title, isMangaTitle(anime.format));
+        const normalized = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const match = candidates.find(candidate => normalized(titleOf(candidate.anime)) === normalized(title))
+          || candidates[0];
+        if (match) {
+          const fallback = match.anime;
+          anime.description ||= fallback.description;
+          if (!imageOf(anime) && imageOf(fallback)) anime.coverImage = fallback.coverImage;
+          if (!anime.bannerImage && fallback.bannerImage) anime.bannerImage = fallback.bannerImage;
+          if (!anime.averageScore && fallback.averageScore) anime.averageScore = fallback.averageScore;
+          if (!anime.episodes && fallback.episodes) anime.episodes = fallback.episodes;
+          if (!anime.genres?.length && fallback.genres?.length) anime.genres = fallback.genres;
+          anime.externalLinks = [...(anime.externalLinks || []), ...(fallback.externalLinks || [])];
+          anime.externalLinks = anime.externalLinks.filter((link, index, all) => all.findIndex(other => other.url === link.url) === index);
+        }
+      } catch (error) {
+        console.warn('Alternative metadata providers are temporarily unavailable:', error);
+      }
+    }
     return anime;
   });
 }
