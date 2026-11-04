@@ -44,7 +44,7 @@ function mapKitsu(item: any, manga: boolean): Anime {
   const kitsuType = manga ? 'Manga' : (attr.subtype || 'Anime');
   const url = `https://kitsu.io/${manga ? 'manga' : 'anime'}/${item.id}`;
   return {
-    id: `fallback-kitsu-${item.id}`,
+    id: `fallback-kitsu-${manga ? 'm' : 'a'}-${item.id}`,
     title: { english: first(titles.en, attr.canonicalTitle), romaji: first(titles.en_jp, attr.canonicalTitle), native: titles.ja_jp },
     description: clean(attr.synopsis),
     coverImage: { extraLarge: image, large: image },
@@ -66,6 +66,15 @@ function mapKitsu(item: any, manga: boolean): Anime {
   };
 }
 
+function mapMangaDex(item: any): Anime {
+  const attr = item.attributes || {};
+  const names = attr.title || {};
+  const name = first(names.en, ...Object.values(names)) || 'Untitled';
+  const cover = (item.relationships || []).find((r: any) => r.type === 'cover_art')?.attributes?.fileName;
+  const image = cover ? `https://uploads.mangadex.org/covers/${item.id}/${cover}.256.jpg` : '';
+  return { id: `fallback-mangadex-${item.id}`, title: { english: name, romaji: name }, description: first(attr.description?.en, ...Object.values(attr.description || {})) || '', coverImage: { extraLarge: image, large: image }, status: attr.status || 'Unknown', format: 'Manga', genres: [], studios: { nodes: [] }, siteUrl: `https://mangadex.org/title/${item.id}`, source: 'MangaDex', synonyms: attr.altTitles?.flatMap((x: any) => Object.values(x)) || [], staff: { edges: [] }, externalLinks: [{site:'MangaDex',url:`https://mangadex.org/title/${item.id}`}], characters: { pageInfo: {currentPage:1,hasNextPage:false}, edges: [] } } as Anime;
+}
+
 async function fetchJson(url: string, timeoutMs = 7000): Promise<any> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -74,6 +83,27 @@ async function fetchJson(url: string, timeoutMs = 7000): Promise<any> {
     if (!response.ok) throw new Error(`Provider returned ${response.status}`);
     return await response.json();
   } finally { window.clearTimeout(timer); }
+}
+
+export async function getFallbackMetadataById(id: string): Promise<Anime | null> {
+  const jikan = id.match(/^fallback-jikan-([am])-(\\d+)$/);
+  if (jikan) {
+    const manga = jikan[1] === 'm';
+    const data = await fetchJson(`https://api.jikan.moe/v4/${manga ? 'manga' : 'anime'}/${jikan[2]}/full`);
+    return data.data ? mapJikan(data.data, manga) : null;
+  }
+  const kitsu = id.match(/^fallback-kitsu-([am])-(\\d+)$/);
+  if (kitsu) {
+    const manga = kitsu[1] === 'm';
+    const data = await fetchJson(`https://kitsu.io/api/edge/${manga ? 'manga' : 'anime'}/${kitsu[2]}`);
+    return data.data ? mapKitsu(data.data, manga) : null;
+  }
+  const mangadex = id.match(/^fallback-mangadex-([0-9a-f-]{36})$/i);
+  if (mangadex) {
+    const data = await fetchJson(`https://api.mangadex.org/manga/${mangadex[1]}?includes[]=cover_art`);
+    return data.data ? mapMangaDex(data.data) : null;
+  }
+  return null;
 }
 
 export async function searchFallbackMetadata(title: string, manga = false): Promise<ProviderResult[]> {
@@ -87,14 +117,7 @@ export async function searchFallbackMetadata(title: string, manga = false): Prom
         { name: 'Kitsu', run: async () => (await fetchJson(`https://kitsu.io/api/edge/manga?filter[text]=${encoded}&page[limit]=5`)).data?.map((item: any) => mapKitsu(item, true)) || [] },
         { name: 'MangaDex', run: async () => {
           const data = await fetchJson(`https://api.mangadex.org/manga?title=${encoded}&limit=5&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive`);
-          return (data.data || []).map((item: any) => {
-            const attr = item.attributes || {};
-            const names = attr.title || {};
-            const name = first(names.en, ...Object.values(names)) || 'Untitled';
-            const cover = (item.relationships || []).find((r: any) => r.type === 'cover_art')?.attributes?.fileName;
-            const image = cover ? `https://uploads.mangadex.org/covers/${item.id}/${cover}.256.jpg` : '';
-            return { id: `fallback-mangadex-${item.id}`, title: { english: name, romaji: name }, description: first(attr.description?.en, ...Object.values(attr.description || {})) || '', coverImage: { extraLarge: image, large: image }, status: attr.status || 'Unknown', format: 'Manga', genres: [], studios: { nodes: [] }, siteUrl: `https://mangadex.org/title/${item.id}`, source: 'MangaDex', synonyms: attr.altTitles?.flatMap((x: any) => Object.values(x)) || [], staff: { edges: [] }, externalLinks: [{site:'MangaDex',url:`https://mangadex.org/title/${item.id}`}], characters: { pageInfo: {currentPage:1,hasNextPage:false}, edges: [] } } as Anime;
-          });
+return (data.data || []).map(mapMangaDex);
         } }
       ]
     : [
