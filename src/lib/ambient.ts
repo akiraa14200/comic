@@ -37,7 +37,9 @@ export type AmbientOptions = {
   scale?: number;       // default 1.2
   fps?: number;         // default 30 (hard cap 30)
   resolution?: number;  // long edge of sampling canvas, default 160
-  frameInterval?: number; // ms between iframe thumbnail scenes, default 6000
+  frameInterval?: number; // legacy, unused
+  /** Expected video length in seconds, used to time iframe scene changes (default 150). */
+  durationHint?: number;
 };
 
 export type AmbientHandle = { destroy: () => void; refresh: () => void };
@@ -61,16 +63,17 @@ const clips = (style: CSSStyleDeclaration) =>
 export function createAmbientGlow(options: AmbientOptions): AmbientHandle {
   const { host, media = null } = options;
   const opacity = options.opacity ?? 0.95;
-  const saturation = options.saturation ?? 2.2;
-  const brightness = options.brightness ?? 1.05;
+  const saturation = options.saturation ?? 1.3;
+  const brightness = options.brightness ?? 1;
   const scale = options.scale ?? 1;
   const spreadX = options.spread?.x ?? 0.1;
   const spreadTop = options.spread?.top ?? 0.2;
   const spreadBottom = options.spread?.bottom ?? 0.55;
   const blurFor = (width: number) => options.blur ?? Math.round(Math.max(28, Math.min(80, width * 0.09)));
   const fps = Math.min(30, options.fps ?? 30);
-  const resolution = options.resolution ?? 160;
-  const frameInterval = options.frameInterval ?? 3500;
+  const resolution = options.resolution ?? 200;
+    // Approximate playback timeline for iframe scenes (YouTube mq1/mq2/mq3 ≈ 25/50/75% of the video).
+  const durationHint = Math.max(30, options.durationHint ?? 150) * 1000;
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
 
   // ----- DOM: glow layer -------------------------------------------------
@@ -127,31 +130,57 @@ export function createAmbientGlow(options: AmbientOptions): AmbientHandle {
     glow.style.height = `${h * (1 + spreadTop + spreadBottom)}px`;
     glow.style.setProperty('--ambient-blur', `${blurFor(w)}px`);
   };
+  // The canvas covers the whole glow box; the player occupies an inner rectangle of it.
+  const boxW = (w: number) => w * (1 + spreadX * 2);
+  const boxH = (h: number) => h * (1 + spreadTop + spreadBottom);
   const sizeCanvas = (w: number, h: number) => {
     if (!w || !h) return;
-    const ratio = w / h;
+    const ratio = boxW(w) / boxH(h);
     const cw = Math.max(2, Math.round(ratio >= 1 ? resolution : resolution * ratio));
     const ch = Math.max(2, Math.round(ratio >= 1 ? resolution / ratio : resolution));
     if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; first = true; }
   };
   place();
   sizeCanvas(host.offsetWidth, host.offsetHeight);
+  let lastSource: { src: CanvasImageSource; w: number; h: number } | null = null;
   const resizeObserver = 'ResizeObserver' in window ? new ResizeObserver(() => {
     place();
-    if (!(media instanceof HTMLVideoElement && media.videoWidth)) sizeCanvas(host.offsetWidth, host.offsetHeight);
+    sizeCanvas(host.offsetWidth, host.offsetHeight);
+    if (lastSource && first) drawCover(lastSource.src, lastSource.w, lastSource.h, 1);
   }) : null;
   resizeObserver?.observe(host);
   resizeObserver?.observe(anchor);
 
   // ----- Drawing ---------------------------------------------------------
+  /**
+   * Spatially accurate frame painting: the frame is drawn exactly where the player
+   * sits, then each edge band of the frame is stretched outward over its own side
+   * (top edge → light above, bottom edge → light below, …). After the blur this
+   * matches what is on screen next to each edge, like YouTube's own Ambient Mode.
+   */
   const drawCover = (source: CanvasImageSource, sw: number, sh: number, alpha: number) => {
     if (!sw || !sh) return false;
     const cw = canvas.width, ch = canvas.height;
-    const s = Math.max(cw / sw, ch / sh);
-    const dw = sw * s, dh = sh * s;
+    const fx = 1 + spreadX * 2, fy = 1 + spreadTop + spreadBottom;
+    const pw = cw / fx, ph = ch / fy, px = (cw - pw) / 2, py = ch * spreadTop / fy;
+    // Crop the source to the player's aspect ratio (object-fit: cover).
+    const target = pw / ph, srcRatio = sw / sh;
+    let cx = 0, cy = 0, cWid = sw, cHei = sh;
+    if (srcRatio > target) { cWid = sh * target; cx = (sw - cWid) / 2; } else { cHei = sw / target; cy = (sh - cHei) / 2; }
+    const ex = cWid * 0.1, ey = cHei * 0.1; // edge band = outer 10% of the frame
+    const right = px + pw, bottom = py + ph;
     try {
+      lastSource = { src: source, w: sw, h: sh };
       ctx.globalAlpha = first ? 1 : alpha;
-      ctx.drawImage(source, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+      ctx.drawImage(source, cx, cy, cWid, cHei, px, py, pw, ph);                              // centre
+      ctx.drawImage(source, cx, cy, cWid, ey, px, 0, pw, py);                                   // top
+      ctx.drawImage(source, cx, cy + cHei - ey, cWid, ey, px, bottom, pw, ch - bottom);         // bottom
+      ctx.drawImage(source, cx, cy, ex, cHei, 0, py, px, ph);                                   // left
+      ctx.drawImage(source, cx + cWid - ex, cy, ex, cHei, right, py, cw - right, ph);           // right
+      ctx.drawImage(source, cx, cy, ex, ey, 0, 0, px, py);                                      // corners
+      ctx.drawImage(source, cx + cWid - ex, cy, ex, ey, right, 0, cw - right, py);
+      ctx.drawImage(source, cx, cy + cHei - ey, ex, ey, 0, bottom, px, ch - bottom);
+      ctx.drawImage(source, cx + cWid - ex, cy + cHei - ey, ex, ey, right, bottom, cw - right, ch - bottom);
     } catch { return false; } // e.g. media not decodable yet
     if (first) { first = false; glow.classList.add('is-ready'); }
     return true;
@@ -175,7 +204,6 @@ export function createAmbientGlow(options: AmbientOptions): AmbientHandle {
   const blendAlpha = () => (reducedMotion?.matches ? 1 : 0.3);
   const drawVideo = () => {
     if (!video || video.readyState < 2) return;
-    sizeCanvas(video.videoWidth, video.videoHeight);
     drawCover(video, video.videoWidth, video.videoHeight, blendAlpha());
   };
   const videoTick = (now: number) => {
@@ -221,15 +249,28 @@ export function createAmbientGlow(options: AmbientOptions): AmbientHandle {
     };
     fadeRaf = requestAnimationFrame(step);
   };
+  // Scene follows elapsed play time: frame 0 is the cover the user just tapped; mq1/mq2/mq3 are
+  // YouTube's 25% / 50% / 75% frames, so switch to each one when playback reaches that point.
+  let playedMs = 0, playStart = 0;
+  const elapsed = () => playedMs + (playStart ? performance.now() - playStart : 0);
+  const sceneForTime = () => {
+    if (images.length < 2) return 0;
+    const progress = elapsed() / durationHint;
+    const steps = images.length - 1; // indices 1..n map to 25%, 50%, 75%
+    let index = 0;
+    for (let i = 1; i <= steps; i++) if (progress >= i / (steps + 1) - 0.08) index = i;
+    return index;
+  };
   const scheduleScenes = () => {
+    if (!playStart) playStart = performance.now();
     if (sceneTimer || images.length < 2) return;
     sceneTimer = window.setInterval(() => {
       if (!shouldRun()) return;
-      sceneIndex = (sceneIndex + 1) % images.length;
-      fadeTo(images[sceneIndex]);
-    }, frameInterval);
+      const next = sceneForTime();
+      if (next !== sceneIndex) { sceneIndex = next; fadeTo(images[sceneIndex]); }
+    }, 1000);
   };
-  const cancelScenes = () => { window.clearInterval(sceneTimer); sceneTimer = 0; cancelAnimationFrame(fadeRaf); };
+  const cancelScenes = () => { if (playStart && !(playing && pageVisible)) { playedMs += performance.now() - playStart; playStart = 0; } window.clearInterval(sceneTimer); sceneTimer = 0; cancelAnimationFrame(fadeRaf); };
 
   const update = () => {
     applyEnabled();
