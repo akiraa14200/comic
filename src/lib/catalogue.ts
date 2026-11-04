@@ -104,10 +104,14 @@ export async function getRelatedVideos(page = 1, titleId?: string): Promise<Rela
   // RykoTube's saved community videos and its existing Shorts/Video layout.
   // Both media types are paged independently so the feed can grow gradually.
   if (!titleId) {
-    const [anime, manga] = await Promise.all([
+    const [animeResult, mangaResult] = await Promise.allSettled([
       getAniListAnimeVideos(page),
       getMangaVideoCatalogue(page)
     ]);
+    const anime = animeResult.status === 'fulfilled' ? animeResult.value : [];
+    const manga = mangaResult.status === 'fulfilled' ? mangaResult.value : [];
+    if (animeResult.status === 'rejected') console.warn('AniList anime video feed unavailable; keeping community videos.', animeResult.reason);
+    if (mangaResult.status === 'rejected') console.warn('AniList manga video feed unavailable; keeping community videos.', mangaResult.reason);
     const knownUrls = new Set(videos.map(video => video.videoUrl));
     const fromAniList = [...anime, ...manga].flatMap(item => {
       const trailerId = item.trailer?.site?.toLowerCase() === 'youtube' && /^[a-zA-Z0-9_-]{6,}$/.test(item.trailer.id)
@@ -256,10 +260,26 @@ export async function getPopular(): Promise<Anime[]> {
   });
 }
 export async function getTrendingManga(): Promise<Anime[]> {
-  return cached('trending-manga', async () => (await fetchTrendingManga()).map(mapAniListMedia));
+  return cached('trending-manga', async () => {
+    const [remote, local] = await Promise.allSettled([
+      fetchTrendingManga(),
+      fetchTitles(supabase.from('titles').select('*').in('media_type', ['Manga','Manhwa','Manhua','Light Novel','Web Novel']).order('popularity', { ascending: false }).limit(18))
+    ]);
+    const items = [...(remote.status === 'fulfilled' ? remote.value.map(mapAniListMedia) : []), ...(local.status === 'fulfilled' ? local.value : [])];
+    const seen = new Set<string>();
+    return items.filter(item => !seen.has(item.id) && !!seen.add(item.id)).slice(0, 36);
+  });
 }
 export async function getPopularManga(): Promise<Anime[]> {
-  return cached('popular-manga', async () => (await fetchPopularManga()).map(mapAniListMedia));
+  return cached('popular-manga', async () => {
+    const [remote, local] = await Promise.allSettled([
+      fetchPopularManga(),
+      fetchTitles(supabase.from('titles').select('*').in('media_type', ['Manga','Manhwa','Manhua','Light Novel','Web Novel']).order('popularity', { ascending: false }).limit(18))
+    ]);
+    const items = [...(remote.status === 'fulfilled' ? remote.value.map(mapAniListMedia) : []), ...(local.status === 'fulfilled' ? local.value : [])];
+    const seen = new Set<string>();
+    return items.filter(item => !seen.has(item.id) && !!seen.add(item.id)).slice(0, 36);
+  });
 }
 export async function getSeasonal(): Promise<Anime[]> {
   return cached('seasonal', () => fetchTitles(supabase.from('titles').select('*').in('status', ['Airing','Ongoing']).order('release_year', { ascending: false }).limit(18)));
@@ -284,8 +304,10 @@ export async function searchAnime(search: string, page = 1, genre?: string, stat
   }
   if (page === 1 && search.trim().length >= 2 && (mapped.length < 5 || !mapped.length)) {
     try {
-      const fallback = await searchFallbackMetadata(search, mediaType === 'MANGA');
-      const filtered = fallback.map(item => item.anime).filter(item => {
+      const fallbackGroups = mediaType
+        ? [await searchFallbackMetadata(search, mediaType === 'MANGA')]
+        : await Promise.all([searchFallbackMetadata(search, false), searchFallbackMetadata(search, true)]);
+      const filtered = fallbackGroups.flat().map(item => item.anime).filter(item => {
         if (!format) return true;
         if (mediaType === 'MANGA') return /manga|manhwa|manhua|novel|webtoon/i.test(item.format || '');
         return !/manga|manhwa|manhua|novel|webtoon/i.test(item.format || '');
