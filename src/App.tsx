@@ -482,7 +482,7 @@ function DetailPage({ user }: { user: User | null }) {
 function TrailerFrame({ trailerId, title }: { trailerId: string; title: string }) {
   const frameRef = useRef<HTMLDivElement>(null);
   useAmbientGlow(frameRef, true, { frames: youtubeAmbientFrames(trailerId) });
-  return <div ref={frameRef} className="entry-trailer-frame"><iframe src={`https://www.youtube-nocookie.com/embed/${trailerId}?rel=0&enablejsapi=1`} title={title} allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/></div>;
+  return <div ref={frameRef} className="entry-trailer-frame"><iframe src={`https://www.youtube-nocookie.com/embed/${trailerId}?rel=0`} title={title} allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/></div>;
 }
 
 type LibraryStatus = 'Watching' | 'Plan to Watch' | 'Completed' | 'Waiting';
@@ -631,10 +631,9 @@ function videoEmbedUrl(video: RelatedVideo) {
       if (!id && ['embed', 'shorts', 'live', 'v'].includes(parts[0])) id = parts[1];
       if (!id && parts.length === 1) id = parts[0];
       if (!id || !/^[a-zA-Z0-9_-]{6,}$/.test(id)) return '';
-      // Known-working player settings plus enablejsapi=1 so the ambient glow can follow the
-      // real play position. No `origin` parameter (that broke playback in the Android app);
-      // the glow restores the plain embed automatically if the player reports an error.
-      return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1&rel=0&enablejsapi=1`;
+      // Match the known-working AniList trailer player exactly. Avoid enablejsapi/origin
+      // parameters here: this app only needs plain iframe playback, not the JS player API.
+      return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1&rel=0`;
     }
 
     if (host === 'dai.ly' || host.endsWith('dailymotion.com')) {
