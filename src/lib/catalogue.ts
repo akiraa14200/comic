@@ -358,6 +358,21 @@ export async function getAnime(id: string): Promise<Anime | null> {
       throwIf(error);
       localRow = (data || null) as TitleRow | null;
       if (!localRow) return null;
+
+      // Home/Browse can open a locally stored UUID even when that row is linked
+      // to AniList. Resolve its provider ID too, just like a direct AniList card.
+      const linkedAniListId = Number(localRow.anilist_id);
+      if (Number.isInteger(linkedAniListId) && linkedAniListId > 0) {
+        try {
+          const remote = await getAniListMediaById(
+            linkedAniListId,
+            isMangaTitle(localRow.media_type) ? 'MANGA' : 'ANIME'
+          );
+          if (remote) remoteAnime = mapAniListMedia(remote);
+        } catch (error) {
+          console.warn('Linked AniList detail lookup failed; keeping local catalogue data.', error);
+        }
+      }
     }
 
     const localAnime = mapTitle(localRow);
