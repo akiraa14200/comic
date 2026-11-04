@@ -629,6 +629,16 @@ function PrivacyPage() {
 }
 
 export default function App() {
+  const location = useLocation();
+
+  // Each main navigation route gets its own fresh scroll position.
+  // Reset both the window and document roots for mobile WebViews.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [location.pathname]);
+
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
