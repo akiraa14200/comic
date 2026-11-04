@@ -257,9 +257,7 @@ export async function searchAnime(search: string, page = 1, genre?: string, stat
 }
 
 export async function getAnime(id: number): Promise<Anime | null> {
-  if (!Number.isInteger(id) || id <= 0) return null;
-  const data = await query<{ Media: Anime | null }>(
-    return getAniListMediaById(id, 'ANIME');
+  return getAniListMediaById(id, 'ANIME');
 }
 
 export async function getMediaCharacters(
