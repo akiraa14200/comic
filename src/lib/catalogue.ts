@@ -307,14 +307,13 @@ export async function getAnime(id: string): Promise<Anime | null> {
   if (!id) return null;
   return cached(`detail:${id}`, async () => {
     const isAniListId = id.startsWith('anilist-a-') || id.startsWith('anilist-m-');
-    const manga = id.startsWith('anilist-m-');
     let localRow: TitleRow | null = null;
     let remoteAnime: Anime | null = null;
     if (isAniListId) {
       // Match the #165 detail path: an AniList card must be resolved by its
       // original provider ID and media type. Never swallow an AniList error
       // and turn it into a misleading "not found" result.
-      const match = id.match(/^anilist-([am])-(\\d+)$/);
+      const match = id.match(/^anilist-([am])-(\d+)$/);
       if (!match) throw new Error(`Invalid AniList entry ID: ${id}`);
       const numericId = Number(match[2]);
       if (!Number.isSafeInteger(numericId) || numericId <= 0) {
