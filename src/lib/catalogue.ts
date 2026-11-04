@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { searchFallbackMetadata } from './metadata-fallback';
+import { getFallbackMetadataById, searchFallbackMetadata } from './metadata-fallback';
 import { getMediaCharacters, getVideoCatalogue as getAniListAnimeVideos, getMangaVideoCatalogue, getTrendingManga as fetchTrendingManga, getPopularManga as fetchPopularManga, searchMedia, getAniListMediaById, getTrending as fetchAniListTrending, getPopular as fetchAniListPopular } from './anilist';
 
 export type AnimeCharacter = {
@@ -276,8 +276,30 @@ export async function searchAnime(search: string, page = 1, genre?: string, stat
     ['Anime','Movie','TV Series'].includes(format || '') ? 'ANIME' : undefined;
   const country = format === 'Manhwa' ? 'KR' : format === 'Manhua' ? 'CN' : undefined;
   const apiFormat = format === 'Movie' ? 'MOVIE' : format === 'TV Series' ? 'TV' : format === 'Light Novel' || format === 'Web Novel' ? 'NOVEL' : undefined;
-  const results = await searchMedia(search, page, genre, status, apiFormat, mediaType, country);
-  let mapped = results.map(mapAniListMedia);
+  let mapped: Anime[] = [];
+  try {
+    mapped = (await searchMedia(search, page, genre, status, apiFormat, mediaType, country)).map(mapAniListMedia);
+  } catch (error) {
+    console.warn('AniList search failed; trying alternative metadata providers.', error);
+  }
+  if (page === 1 && search.trim().length >= 2 && (mapped.length < 5 || !mapped.length)) {
+    try {
+      const fallback = await searchFallbackMetadata(search, mediaType === 'MANGA');
+      const filtered = fallback.map(item => item.anime).filter(item => {
+        if (!format) return true;
+        if (mediaType === 'MANGA') return /manga|manhwa|manhua|novel|webtoon/i.test(item.format || '');
+        return !/manga|manhwa|manhua|novel|webtoon/i.test(item.format || '');
+      });
+      const seen = new Set(mapped.map(item => item.title.english?.toLowerCase() || item.title.romaji?.toLowerCase()));
+      mapped = [...mapped, ...filtered.filter(item => {
+        const key = (item.title.english || item.title.romaji || item.id).toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key); return true;
+      })];
+    } catch (error) {
+      console.warn('Alternative metadata search providers are unavailable.', error);
+    }
+  }
   return mapped;
 }
 const isMangaTitle = (format = '') => /manga|manhwa|manhua|webtoon|comic/i.test(format);
@@ -288,22 +310,27 @@ const emptyCharacters = (page = 1): NonNullable<Anime['characters']> => ({
 export async function getAnime(id: string): Promise<Anime | null> {
   if (!id) return null;
   return cached(`detail:${id}`, async () => {
+    if (id.startsWith('fallback-')) {
+      try { return await getFallbackMetadataById(id); }
+      catch (error) { console.warn('Fallback provider detail lookup failed.', error); return null; }
+    }
     const isAniListId = id.startsWith('anilist-a-') || id.startsWith('anilist-m-');
     const manga = id.startsWith('anilist-m-');
     let localRow: TitleRow | null = null;
+    let remoteAnime: Anime | null = null;
     if (isAniListId) {
       const numericId = Number(id.replace(/^anilist-[am]-/, ''));
       if (!Number.isInteger(numericId) || numericId <= 0) return null;
       try {
         const remote = await getAniListMediaById(numericId, manga ? 'MANGA' : 'ANIME');
-        if (remote) return mapAniListMedia(remote);
+        if (remote) remoteAnime = mapAniListMedia(remote);
       } catch (error) {
-        console.warn('AniList detail lookup failed; checking other catalogue providers.', error);
+        console.warn('AniList detail lookup failed; checking local catalogue.', error);
       }
       const { data, error } = await supabase.from('titles').select('*').eq('anilist_id', numericId).maybeSingle();
       if (error) console.warn('Local AniList ID fallback lookup failed:', error.message);
       localRow = (data || null) as TitleRow | null;
-      if (!localRow) return null;
+      if (!localRow) return remoteAnime;
     } else {
       const { data, error } = await supabase.from('titles').select('*').eq('id', id).maybeSingle();
       throwIf(error);
@@ -311,7 +338,22 @@ export async function getAnime(id: string): Promise<Anime | null> {
       if (!localRow) return null;
     }
 
-    const anime = mapTitle(localRow);
+    const localAnime = mapTitle(localRow);
+    const anime: Anime = remoteAnime ? {
+      ...remoteAnime,
+      // Admin-entered assets and trailer URLs take precedence over provider defaults.
+      coverImage: imageOf(localAnime) ? localAnime.coverImage : remoteAnime.coverImage,
+      bannerImage: localAnime.bannerImage || remoteAnime.bannerImage,
+      trailer: localAnime.trailer || remoteAnime.trailer,
+      trailerUrl: localAnime.trailerUrl || remoteAnime.trailerUrl,
+      description: remoteAnime.description || localAnime.description,
+      genres: remoteAnime.genres?.length ? remoteAnime.genres : localAnime.genres,
+      averageScore: remoteAnime.averageScore || localAnime.averageScore,
+      episodes: remoteAnime.episodes || localAnime.episodes,
+      externalLinks: [...(remoteAnime.externalLinks || []), ...(localAnime.externalLinks || [])]
+    } : localAnime;
+    anime.id = id;
+    anime.anilistId = remoteAnime?.anilistId || localAnime.anilistId;
     const localEdges: NonNullable<Anime['characters']>['edges'] = [];
     try {
       const { data: characters, error: characterError } = await supabase
