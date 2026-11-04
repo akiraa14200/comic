@@ -1,4 +1,4 @@
-import type { Anime } from './anilist';
+import type { Anime } from './catalogue';
 
 type ProviderResult = { provider: string; anime: Anime };
 
