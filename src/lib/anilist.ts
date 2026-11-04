@@ -42,7 +42,7 @@ export type Anime = {
   };
 };
 
-const endpoint = 'https://graphql.anilist.co';
+import { supabase } from './supabase';
 const fields = `
   id title { romaji english native } description(asHtml: false)
   coverImage { extraLarge large color } bannerImage averageScore episodes
@@ -62,72 +62,37 @@ async function queryUncached<T>(queryText: string, variables: Record<string, unk
   const cached = memoryCache.get(cacheKey);
   if (cached && cached.expires > Date.now()) return cached.value as T;
 
-  let lastError: Error = new Error('Anime catalogue is temporarily unavailable.');
+  let lastError: Error = new Error('AniList catalogue is temporarily unavailable.');
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 8000);
     try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ query: queryText, variables }),
-        signal: controller.signal
-      });
+      // Use the server-side gateway first. It calls AniList with server headers
+      // and retries through AniList's own website GraphQL route if needed.
+      const { data: gatewayPayload, error: gatewayError } = await supabase.functions.invoke<AniListResponse<T> & { _meta?: { route?: string; fallback?: boolean } }>(
+        'anilist-gateway',
+        { body: { query: queryText, variables } }
+      );
 
-      // AniList can return useful GraphQL error details with non-2xx responses.
-      // Read the body before deciding whether to retry so users see the real cause.
-      const rawBody = await response.text();
-      window.clearTimeout(timeout);
-      let payload: AniListResponse<T> | null = null;
-      try { payload = rawBody ? JSON.parse(rawBody) as AniListResponse<T> : null; } catch { /* non-JSON proxy/server response */ }
-
-      if (!response.ok) {
-        const retryable = response.status === 429 || response.status >= 500;
-        const retryAfter = Number(response.headers.get('Retry-After') || 0);
-        const apiMessage = payload?.errors?.map(error => error.message).filter(Boolean).join(' · ');
-        lastError = new Error(response.status === 429
-          ? 'AniList is receiving too many requests. Please wait a moment.'
-          : apiMessage
-            ? `AniList rejected the catalogue query: ${apiMessage}`
-            : response.status === 400
-              ? 'AniList rejected the catalogue request (400). The API did not provide a readable query error.'
-              : `Anime catalogue request failed (${response.status}).`);
-        if (retryable && attempt < 2) {
-          await new Promise(resolve => window.setTimeout(resolve, retryAfter > 0 ? Math.min(retryAfter * 1000, 5000) : 500 * (attempt + 1)));
-          continue;
-        }
-        throw lastError;
-      }
-
-      if (!payload) {
-        lastError = new Error('AniList returned an unreadable response. Please try again.');
-        throw lastError;
-      }
-      if (payload.data) {
-        memoryCache.set(cacheKey, { expires: Date.now() + cacheTtl, value: payload.data });
+      if (gatewayError) {
+        lastError = new Error(`AniList gateway request failed: ${gatewayError.message || 'unknown gateway error'}`);
+      } else if (gatewayPayload?.data) {
+        memoryCache.set(cacheKey, { expires: Date.now() + cacheTtl, value: gatewayPayload.data });
         if (memoryCache.size > 200) {
           const oldestKey = memoryCache.keys().next().value;
           if (oldestKey) memoryCache.delete(oldestKey);
         }
-        return payload.data;
+        return gatewayPayload.data;
+      } else {
+        const message = gatewayPayload?.errors?.map(error => error.message).filter(Boolean).join(' · ')
+          || 'AniList gateway returned an incomplete response.';
+        lastError = new Error(message);
+        if (!/rate|temporar|timeout|internal|429|503/i.test(message) || attempt === 2) throw lastError;
       }
-      lastError = new Error(payload.errors?.map(error => error.message).filter(Boolean).join(' · ') || 'AniList returned an incomplete response.');
-      if (attempt < 2 && /rate|temporar|timeout|internal/i.test(lastError.message)) {
-        await new Promise(resolve => window.setTimeout(resolve, 400 * (attempt + 1)));
-        continue;
-      }
-      throw lastError;
     } catch (error) {
-      window.clearTimeout(timeout);
-      lastError = error instanceof Error
-        ? (error.name === 'AbortError' ? new Error('AniList took too long to respond. Please try again.') : error)
-        : new Error('Could not connect to AniList.');
-      if (attempt < 2 && (lastError.name === 'AbortError' || /fetch|network|temporar|timed out/i.test(lastError.message))) {
-        await new Promise(resolve => window.setTimeout(resolve, 450 * (attempt + 1)));
-        continue;
-      }
-      throw lastError;
+      lastError = error instanceof Error ? error : new Error('Could not connect to AniList.');
+      if (attempt === 2 || !/fetch|network|temporar|timeout|429|503|gateway/i.test(lastError.message)) throw lastError;
     }
+
+    if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, 600 * (attempt + 1)));
   }
   throw lastError;
 }
