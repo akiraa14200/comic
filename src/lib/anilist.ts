@@ -43,6 +43,7 @@ export type Anime = {
 };
 
 import { supabase } from './supabase';
+const endpoint = 'https://graphql.anilist.co';
 const fields = `
   id title { romaji english native } description(asHtml: false)
   coverImage { extraLarge large color } bannerImage averageScore episodes
@@ -50,6 +51,24 @@ const fields = `
   studios(isMain: true) { nodes { name } }
   nextAiringEpisode { episode airingAt }
   trailer { id site }
+`;
+// Full detail selection retained from the known-good #165 build.
+const detailFields = `
+  ${fields}
+  countryOfOrigin source synonyms startDate { year month day }
+  staff(sort: RELEVANCE, perPage: 35) { edges { role node { name { full } } } }
+  externalLinks { url site type }
+  characters(page: 1, perPage: 50, sort: ROLE) {
+    pageInfo { currentPage hasNextPage }
+    edges {
+      role
+      node {
+        id name { full native alternative } image { large medium }
+        description(asHtml: false) gender age dateOfBirth { year month day }
+        siteUrl favourites
+      }
+    }
+  }
 `;
 type AniListResponse<T> = { data?: T; errors?: { message?: string }[] };
 const memoryCache = new Map<string, { expires: number; value: unknown }>();
@@ -61,42 +80,74 @@ async function queryUncached<T>(queryText: string, variables: Record<string, unk
   const cacheKey = JSON.stringify([queryText, variables]);
   const cached = memoryCache.get(cacheKey);
   if (cached && cached.expires > Date.now()) return cached.value as T;
-
   let lastError: Error = new Error('AniList catalogue is temporarily unavailable.');
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      // Use the server-side gateway first. It calls AniList with server headers
-      // and retries through AniList's own website GraphQL route if needed.
-      const { data: gatewayPayload, error: gatewayError } = await supabase.functions.invoke<AniListResponse<T> & { _meta?: { route?: string; fallback?: boolean } }>(
-        'anilist-gateway',
-        { body: { query: queryText, variables } }
-      );
 
-      if (gatewayError) {
-        lastError = new Error(`AniList gateway request failed: ${gatewayError.message || 'unknown gateway error'}`);
-      } else if (gatewayPayload?.data) {
-        memoryCache.set(cacheKey, { expires: Date.now() + cacheTtl, value: gatewayPayload.data });
+  // Keep the same direct GraphQL request path as the known-good #165 build.
+  // The server gateway is retained only as a fallback for network restrictions.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ query: queryText, variables }),
+        signal: controller.signal
+      });
+      const rawBody = await response.text();
+      window.clearTimeout(timeout);
+      let payload: AniListResponse<T> | null = null;
+      try { payload = rawBody ? JSON.parse(rawBody) as AniListResponse<T> : null; } catch { /* non-JSON upstream response */ }
+      if (response.ok && payload?.data) {
+        memoryCache.set(cacheKey, { expires: Date.now() + cacheTtl, value: payload.data });
         if (memoryCache.size > 200) {
           const oldestKey = memoryCache.keys().next().value;
           if (oldestKey) memoryCache.delete(oldestKey);
         }
-        return gatewayPayload.data;
-      } else {
-        const message = gatewayPayload?.errors?.map(error => error.message).filter(Boolean).join(' · ')
-          || 'AniList gateway returned an incomplete response.';
-        lastError = new Error(message);
-        if (!/rate|temporar|timeout|internal|429|503/i.test(message) || attempt === 2) throw lastError;
+        return payload.data;
       }
+      const apiMessage = payload?.errors?.map(error => error.message).filter(Boolean).join(' · ');
+      const retryable = response.status === 429 || response.status >= 500;
+      lastError = new Error(response.status === 429
+        ? 'AniList is receiving too many requests. Please wait a moment.'
+        : apiMessage ? `AniList rejected the catalogue query: ${apiMessage}` : `AniList catalogue request failed (${response.status}).`);
+      if (retryable && attempt < 1) {
+        const retryAfter = Number(response.headers.get('Retry-After') || 0);
+        await new Promise(resolve => window.setTimeout(resolve, retryAfter > 0 ? Math.min(retryAfter * 1000, 5000) : 500));
+        continue;
+      }
+      if (!retryable) throw lastError;
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error('Could not connect to AniList.');
-      if (attempt === 2 || !/fetch|network|temporar|timeout|429|503|gateway/i.test(lastError.message)) throw lastError;
+      window.clearTimeout(timeout);
+      lastError = error instanceof Error
+        ? (error.name === 'AbortError' ? new Error('AniList took too long to respond. Please try again.') : error)
+        : new Error('Could not connect to AniList.');
+      if (attempt < 1 && (lastError.name === 'AbortError' || /fetch|network|temporar|timed out/i.test(lastError.message))) {
+        await new Promise(resolve => window.setTimeout(resolve, 450));
+        continue;
+      }
+      break;
     }
-
-    if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, 600 * (attempt + 1)));
   }
-  throw lastError;
-}
 
+  // Fallback only: normal detail loading follows the proven direct request path.
+  try {
+    const { data: gatewayPayload, error: gatewayError } = await supabase.functions.invoke<AniListResponse<T>>('anilist-gateway', { body: { query: queryText, variables } });
+    if (!gatewayError && gatewayPayload?.data) {
+      memoryCache.set(cacheKey, { expires: Date.now() + cacheTtl, value: gatewayPayload.data });
+      if (memoryCache.size > 200) {
+        const oldestKey = memoryCache.keys().next().value;
+        if (oldestKey) memoryCache.delete(oldestKey);
+      }
+      return gatewayPayload.data;
+    }
+    const gatewayMessage = gatewayError?.message || gatewayPayload?.errors?.map(error => error.message).filter(Boolean).join(' · ') || 'Gateway returned an incomplete response.';
+    throw new Error(gatewayMessage);
+  } catch (gatewayError) {
+    const message = gatewayError instanceof Error ? gatewayError.message : String(gatewayError);
+    throw new Error(`AniList direct request failed: ${lastError.message}. Gateway fallback failed: ${message}`);
+  }
+}
 async function query<T>(queryText: string, variables: Record<string, unknown> = {}, cacheTtl = CACHE_TTL): Promise<T> {
   const key = JSON.stringify([queryText, variables]);
   const existing = inFlightRequests.get(key);
@@ -166,7 +217,7 @@ export async function searchMedia(
 export async function getAniListMediaById(id: number, mediaType: 'ANIME' | 'MANGA' = 'ANIME'): Promise<Anime | null> {
   if (!Number.isInteger(id) || id <= 0) return null;
   const data = await query<{ Media: Anime | null }>(
-    `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { ${fields} source synonyms startDate { year month day } } }`,
+    `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { ${detailFields} } }`,
     { id, type: mediaType },
     DETAIL_CACHE_TTL
   );
