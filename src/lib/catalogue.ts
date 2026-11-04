@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { getFallbackMetadataById, searchFallbackMetadata } from './metadata-fallback';
 import { getMediaCharacters, getVideoCatalogue as getAniListAnimeVideos, getMangaVideoCatalogue, getTrendingManga as fetchTrendingManga, getPopularManga as fetchPopularManga, searchMedia, getAniListMediaById, getTrending as fetchAniListTrending, getPopular as fetchAniListPopular } from './anilist';
 
 export type AnimeCharacter = {
@@ -296,33 +295,8 @@ export async function searchAnime(search: string, page = 1, genre?: string, stat
     ['Anime','Movie','TV Series'].includes(format || '') ? 'ANIME' : undefined;
   const country = format === 'Manhwa' ? 'KR' : format === 'Manhua' ? 'CN' : undefined;
   const apiFormat = format === 'Movie' ? 'MOVIE' : format === 'TV Series' ? 'TV' : format === 'Light Novel' || format === 'Web Novel' ? 'NOVEL' : undefined;
-  let mapped: Anime[] = [];
-  try {
-    mapped = (await searchMedia(search, page, genre, status, apiFormat, mediaType, country)).map(mapAniListMedia);
-  } catch (error) {
-    console.warn('AniList search failed; trying alternative metadata providers.', error);
-  }
-  if (page === 1 && search.trim().length >= 2 && (mapped.length < 5 || !mapped.length)) {
-    try {
-      const fallbackGroups = mediaType
-        ? [await searchFallbackMetadata(search, mediaType === 'MANGA')]
-        : await Promise.all([searchFallbackMetadata(search, false), searchFallbackMetadata(search, true)]);
-      const filtered = fallbackGroups.flat().map(item => item.anime).filter(item => {
-        if (!format) return true;
-        if (mediaType === 'MANGA') return /manga|manhwa|manhua|novel|webtoon/i.test(item.format || '');
-        return !/manga|manhwa|manhua|novel|webtoon/i.test(item.format || '');
-      });
-      const seen = new Set(mapped.map(item => item.title.english?.toLowerCase() || item.title.romaji?.toLowerCase()));
-      mapped = [...mapped, ...filtered.filter(item => {
-        const key = (item.title.english || item.title.romaji || item.id).toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key); return true;
-      })];
-    } catch (error) {
-      console.warn('Alternative metadata search providers are unavailable.', error);
-    }
-  }
-  return mapped;
+  const results = await searchMedia(search, page, genre, status, apiFormat, mediaType, country);
+  return results.map(mapAniListMedia);
 }
 const isMangaTitle = (format = '') => /manga|manhwa|manhua|webtoon|comic|novel|one[_ -]?shot/i.test(format);
 const emptyCharacters = (page = 1): NonNullable<Anime['characters']> => ({
@@ -332,10 +306,6 @@ const emptyCharacters = (page = 1): NonNullable<Anime['characters']> => ({
 export async function getAnime(id: string): Promise<Anime | null> {
   if (!id) return null;
   return cached(`detail:${id}`, async () => {
-    if (id.startsWith('fallback-')) {
-      try { return await getFallbackMetadataById(id); }
-      catch (error) { console.warn('Fallback provider detail lookup failed.', error); return null; }
-    }
     const isAniListId = id.startsWith('anilist-a-') || id.startsWith('anilist-m-');
     const manga = id.startsWith('anilist-m-');
     let localRow: TitleRow | null = null;
@@ -425,29 +395,7 @@ export async function getAnime(id: string): Promise<Anime | null> {
       })
     };
 
-    // Enrich incomplete local records from Jikan, Kitsu and (for manga) MangaDex.
-    if (!anime.description || !imageOf(anime) || !anime.genres?.length) {
-      try {
-        const title = titleOf(anime);
-        const candidates = await searchFallbackMetadata(title, isMangaTitle(anime.format));
-        const normalized = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const match = candidates.find(candidate => normalized(titleOf(candidate.anime)) === normalized(title))
-          || candidates[0];
-        if (match) {
-          const fallback = match.anime;
-          anime.description ||= fallback.description;
-          if (!imageOf(anime) && imageOf(fallback)) anime.coverImage = fallback.coverImage;
-          if (!anime.bannerImage && fallback.bannerImage) anime.bannerImage = fallback.bannerImage;
-          if (!anime.averageScore && fallback.averageScore) anime.averageScore = fallback.averageScore;
-          if (!anime.episodes && fallback.episodes) anime.episodes = fallback.episodes;
-          if (!anime.genres?.length && fallback.genres?.length) anime.genres = fallback.genres;
-          anime.externalLinks = [...(anime.externalLinks || []), ...(fallback.externalLinks || [])];
-          anime.externalLinks = anime.externalLinks.filter((link, index, all) => all.findIndex(other => other.url === link.url) === index);
-        }
-      } catch (error) {
-        console.warn('Alternative metadata providers are temporarily unavailable:', error);
-      }
-    }
+
     return anime;
   });
 }
