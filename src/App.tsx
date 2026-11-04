@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft } from 'lucide-react';
+import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft, MoreVertical, Settings as SettingsIcon, Instagram, Send, Mail, Bot } from 'lucide-react';
 // The application UI and page components are defined below.
 import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getPopularManga, getSeasonal, getTrending, getTrendingManga, getRelatedVideos, enrichVideoMetadata, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
 import type { User } from '@supabase/supabase-js';
@@ -31,10 +31,11 @@ const readStore = <T,>(key: string, fallback: T): T => {
 
 function Header({ user, isAdmin, onSignOut }: { user: User | null; isAdmin: boolean; onSignOut: () => void }) {
   const [open, setOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [term, setTerm] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
-  useEffect(() => setOpen(false), [location.pathname]);
+  useEffect(() => { setOpen(false); setMoreOpen(false); }, [location.pathname]);
   const submit = (event: FormEvent) => { event.preventDefault(); navigate(term.trim() ? `/search?q=${encodeURIComponent(term.trim())}` : '/search'); setOpen(false); };
   return <header className="topbar"><div className="nav-wrap">
     <Link to="/" className="brand"><span className="brand-mark">R</span><span>RYKOCCLLECTION</span></Link>
@@ -43,7 +44,7 @@ function Header({ user, isAdmin, onSignOut }: { user: User | null; isAdmin: bool
     </nav>
     <form className="nav-search" onSubmit={submit}><Search size={17}/><input value={term} onChange={e => setTerm(e.target.value)} placeholder="Search anime..." aria-label="Search anime"/><kbd>↵</kbd></form>
     {user && <div className="nav-account"><span>{String(user.user_metadata?.display_name || "Reader")}</span><button onClick={onSignOut}>Sign out</button></div>}
-    <button className="icon-btn mobile-menu" onClick={() => setOpen(!open)} aria-label="Toggle menu">{open ? <X/> : <Menu/>}</button>
+    <div className="header-actions"><button className="icon-btn more-menu-trigger" onClick={() => setMoreOpen(value => !value)} aria-label="Open more options" aria-expanded={moreOpen}><MoreVertical size={20}/></button>{moreOpen && <div className="header-more-menu"><Link to="/settings" onClick={()=>setMoreOpen(false)}><SettingsIcon size={16}/> Settings</Link><Link to="/about" onClick={()=>setMoreOpen(false)}><Info size={16}/> About</Link></div>}<button className="icon-btn mobile-menu" onClick={() => setOpen(!open)} aria-label="Toggle menu">{open ? <X/> : <Menu/>}</button></div>
   </div></header>;
 }
 
@@ -644,6 +645,41 @@ function PrivacyPage() {
   </main>;
 }
 
+
+function SettingsPage() {
+  const [reducedMotion, setReducedMotion] = useState(()=>readStore('ryko-reduced-motion', false));
+  const [compactLayout, setCompactLayout] = useState(()=>readStore('ryko-compact-layout', false));
+  useEffect(()=>{ localStorage.setItem('ryko-reduced-motion', JSON.stringify(reducedMotion)); document.documentElement.classList.toggle('ryko-reduced-motion', reducedMotion); },[reducedMotion]);
+  useEffect(()=>{ localStorage.setItem('ryko-compact-layout', JSON.stringify(compactLayout)); document.documentElement.classList.toggle('ryko-compact-layout', compactLayout); },[compactLayout]);
+  const clearLocalData = () => {
+    if (!window.confirm('Clear your local watchlist, viewing history and library statuses on this device?')) return;
+    ['kairo-watchlist','kairo-history','rykoc-library-status'].forEach(key=>localStorage.removeItem(key));
+    window.location.reload();
+  };
+  return <main className="content-page preferences-page"><div className="page-heading"><span className="eyebrow">MAKE RYKO YOURS</span><h1>App <em>settings.</em></h1><p>Adjust the browsing experience on this device.</p></div>
+    <section className="settings-group"><h2>Display & accessibility</h2>
+      <div className="settings-row"><div><strong>Reduce motion</strong><p>Turn off most interface animations and transitions.</p></div><button className={reducedMotion?'toggle active':'toggle'} role="switch" aria-checked={reducedMotion} aria-label="Reduce motion" onClick={()=>setReducedMotion(v=>!v)}><span/></button></div>
+      <div className="settings-row"><div><strong>Compact catalogue</strong><p>Show more anime and manga cards in each row.</p></div><button className={compactLayout?'toggle active':'toggle'} role="switch" aria-checked={compactLayout} aria-label="Compact catalogue" onClick={()=>setCompactLayout(v=>!v)}><span/></button></div>
+    </section>
+    <section className="settings-group"><h2>Local storage</h2><div className="settings-row"><div><strong>Clear local library data</strong><p>Remove this device's watchlist, recently viewed titles and library statuses. Your account and comments are not affected.</p></div><button className="secondary-btn settings-danger" onClick={clearLocalData}>Clear data</button></div></section>
+    <p className="fine-print">These preferences are saved only in this browser or app on this device.</p>
+  </main>;
+}
+
+function AboutPage() {
+  return <main className="content-page about-page"><section className="about-hero"><div className="about-brand-mark">R</div><span className="eyebrow">DISCOVER · CONNECT · EXPLORE</span><h1>About <em>RykoCollection.</em></h1><p>A fan-focused discovery space for anime, manga, manhwa and stories worth exploring. Browse information, find trailers and build your personal list.</p><span className="about-version">RYKOCOLLECTION · COMMUNITY PROJECT</span></section>
+    <section className="about-section"><h2>Our channels</h2><p>Follow Ryko Explained and connect with the community.</p><div className="about-links">
+      <a href="https://youtube.com/@rykoexplained?si=9nsc7NonLwfjZBrz" target="_blank" rel="noopener noreferrer"><Youtube/><span><strong>YouTube</strong><small>@RykoExplained</small></span><ExternalLink/></a>
+      <a href="https://www.instagram.com/rykoexplained?xtok=cDF0N3hiZzU5OWFv" target="_blank" rel="noopener noreferrer"><Instagram/><span><strong>Instagram</strong><small>@rykoexplained</small></span><ExternalLink/></a>
+      <a href="https://t.me/rykoexplained" target="_blank" rel="noopener noreferrer"><Send/><span><strong>Telegram community</strong><small>Ryko Explained</small></span><ExternalLink/></a>
+      <a href="https://t.me/RykoCollectionBot" target="_blank" rel="noopener noreferrer"><Bot/><span><strong>Telegram bot</strong><small>@RykoCollectionBot</small></span><ExternalLink/></a>
+      <a href="mailto:rykocollection@gmail.com"><Mail/><span><strong>Email</strong><small>rykocollection@gmail.com</small></span><ExternalLink/></a>
+    </div></section>
+    <section className="about-section about-credits"><h2>Credits & acknowledgements</h2><p><strong>RykoCollection</strong> — concept, product direction and community experience by the Ryko team.</p><p><strong>AniList</strong> — public anime and manga metadata provider. RykoCollection is an independent fan discovery project and is not affiliated with AniList.</p><p><strong>YouTube</strong> — trailer and video playback is provided by YouTube where available. Video rights remain with their respective creators.</p></section>
+    <p className="about-footer">Made for fans, by fans. Thank you for being part of the Ryko community.</p>
+  </main>;
+}
+
 export default function App() {
   const location = useLocation();
   const [visited, setVisited] = useState<string[]>(() => [location.pathname]);
@@ -692,7 +728,7 @@ export default function App() {
   const path = location.pathname;
   const show = (route: string) => path === route;
   const isDetail = path.startsWith('/anime/');
-  const isKnown = ['/', '/search', '/watchlist', '/video', '/account', '/privacy', '/extensions', '/admin'].includes(path) || isDetail;
+  const isKnown = ['/', '/search', '/watchlist', '/video', '/account', '/privacy', '/extensions', '/admin', '/settings', '/about'].includes(path) || isDetail;
 
   const footer = <footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer>;
   const tab = (route: string, content: React.ReactNode) => <div className="tab-scroll-container" style={{display:show(route)?'block':'none'}} aria-hidden={!show(route)}>{content}{footer}</div>;
@@ -705,6 +741,8 @@ export default function App() {
     {visited.includes('/video') && tab('/video', <VideoPage/>)}
     {visited.includes('/account') && tab('/account', <AccountPage user={user}/>)}
     {visited.includes('/privacy') && tab('/privacy', <PrivacyPage/>)}
+    {visited.includes('/settings') && tab('/settings', <SettingsPage/>)}
+    {visited.includes('/about') && tab('/about', <AboutPage/>)}
     {visited.includes('/extensions') && tab('/extensions', <ExtensionPage/>)}
     {visited.includes('/admin') && tab('/admin', <AdminWorkspace/>)}
     {!isKnown && tab(path, <main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>)}
