@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft } from 'lucide-react';
 // The application UI and page components are defined below.
 import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getPopularManga, getSeasonal, getTrending, getTrendingManga, getRelatedVideos, enrichVideoMetadata, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
@@ -649,6 +649,7 @@ export default function App() {
   const [visited, setVisited] = useState<string[]>(() => [location.pathname]);
   const scrollPositions = useRef(new Map<string, number>());
   const currentPath = useRef(location.pathname);
+  const ignoreScrollEvent = useRef(false);
 
   // Keep previously opened screens mounted so catalogue data and UI state are reused.
   useEffect(() => {
@@ -657,15 +658,19 @@ export default function App() {
 
   // Store each tab's scroll position while the user scrolls.
   useEffect(() => {
-    const savePosition = () => scrollPositions.current.set(currentPath.current, window.scrollY);
+    const savePosition = () => { if (!ignoreScrollEvent.current) scrollPositions.current.set(currentPath.current, window.scrollY); };
     window.addEventListener('scroll', savePosition, { passive: true });
     return () => window.removeEventListener('scroll', savePosition);
   }, []);
 
   useLayoutEffect(() => {
+    ignoreScrollEvent.current = true;
     currentPath.current = location.pathname;
     const savedPosition = scrollPositions.current.get(location.pathname) || 0;
-    requestAnimationFrame(() => window.scrollTo(0, savedPosition));
+    requestAnimationFrame(() => {
+      window.scrollTo(0, savedPosition);
+      requestAnimationFrame(() => { ignoreScrollEvent.current = false; });
+    });
   }, [location.pathname]);
 
   const [user, setUser] = useState<User | null>(null);
