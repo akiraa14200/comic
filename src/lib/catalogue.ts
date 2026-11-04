@@ -150,7 +150,7 @@ export async function getRelatedVideos(page = 1, titleId?: string): Promise<Rela
 }
 
 const mapAniListMedia = (item: import('./anilist').Anime): Anime => {
-  const manga = item.format === 'MANGA' || item.format === 'NOVEL' || item.format === 'ONE_SHOT';
+  const manga = item.type === 'MANGA' || item.format === 'MANGA' || item.format === 'NOVEL' || item.format === 'ONE_SHOT';
   const format = manga
     ? item.format === 'NOVEL' ? 'Light Novel' : item.countryOfOrigin === 'KR' ? 'Manhwa' : item.countryOfOrigin === 'CN' ? 'Manhua' : 'Manga'
     : item.format === 'MOVIE' ? 'Movie' : item.format === 'TV' ? 'TV Series' : item.format || 'Anime';
