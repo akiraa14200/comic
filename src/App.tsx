@@ -38,7 +38,7 @@ function Header({ user, isAdmin, onSignOut }: { user: User | null; isAdmin: bool
   const submit = (event: FormEvent) => { event.preventDefault(); navigate(term.trim() ? `/search?q=${encodeURIComponent(term.trim())}` : '/search'); setOpen(false); };
   return <header className="topbar"><div className="nav-wrap">
     <Link to="/" className="brand"><span className="brand-mark">R</span><span>RYKOCCLLECTION</span></Link>
-    <nav className={open ? 'nav-links open' : 'nav-links'}>
+    <nav className={open ? 'nav-links open' : 'nav-links'} onClick={event => { const anchor = (event.target as HTMLElement).closest('a'); if (anchor && new URL(anchor.href).pathname === location.pathname) window.dispatchEvent(new CustomEvent('ryko:refresh-tab', { detail: { path: location.pathname } })); }}>
       <Link to="/"><Compass size={16}/> Discover</Link><Link to="/search">Explore</Link><Link to="/watchlist"><Bookmark size={16}/> My list</Link><Link to="/video"><Tv size={16}/> Video</Link><Link to="/privacy"><ShieldCheck size={16}/> Privacy</Link>{isAdmin && <Link to="/admin"><ShieldCheck size={16}/> Admin workspace</Link>}
     </nav>
     <form className="nav-search" onSubmit={submit}><Search size={17}/><input value={term} onChange={e => setTerm(e.target.value)} placeholder="Search anime..." aria-label="Search anime"/><kbd>↵</kbd></form>
