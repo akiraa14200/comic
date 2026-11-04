@@ -12,7 +12,7 @@ export type AnimeCharacter = {
 };
 
 export type AnimeStaff = { role: string; node: { name: { full?: string } } };
-export type AnimeExternalLink = { url: string; site: string; type?: string };
+export type AnimeExternalLink = { url: string; site: string; type?: string; language?: string };
 export type Anime = {
   id: number;
   title: { romaji?: string; english?: string; native?: string };
@@ -55,7 +55,7 @@ const detailFields = `
   ${fields}
   countryOfOrigin source synonyms startDate { year month day }
   staff(sort: RELEVANCE, perPage: 35) { edges { role node { name { full } } } }
-  externalLinks { url site type }
+  externalLinks { url site type language }
   characters(page: 1, perPage: 50, sort: ROLE) {
     pageInfo { currentPage hasNextPage }
     edges {
@@ -166,6 +166,37 @@ export async function getVideoCatalogue(page = 1, genre?: string, mediaType: 'AN
     { page, genre: genre || undefined, type: mediaType }
   );
   return data.Page?.media || [];
+}
+
+/**
+ * Anime + manga trailer pages in ONE GraphQL request (aliases) instead of two.
+ * AniList rate-limits per request, so batching keeps the Video tab fast and avoids 429s.
+ */
+export async function getTrailerCatalogue(page = 1): Promise<{ anime: Anime[]; manga: Anime[] }> {
+  const data = await query<{ anime: { media: Anime[] }; manga: { media: Anime[] } }>(
+    `query($page: Int) {
+      anime: Page(page: $page, perPage: 50) { media(type: ANIME, sort: TRENDING_DESC, isAdult: false) { ${fields} } }
+      manga: Page(page: $page, perPage: 50) { media(type: MANGA, sort: TRENDING_DESC, isAdult: false) { ${fields} } }
+    }`,
+    { page }
+  );
+  return { anime: data.anime?.media || [], manga: data.manga?.media || [] };
+}
+
+/** Every AniList list shown on Home, fetched in a single request. */
+export async function getHomeCollections(): Promise<{ trending: Anime[]; popular: Anime[]; trendingManga: Anime[]; popularManga: Anime[] }> {
+  const data = await query<Record<'trending' | 'popular' | 'trendingManga' | 'popularManga', { media: Anime[] }>>(
+    `query {
+      trending: Page(perPage: 12) { media(type: ANIME, sort: TRENDING_DESC, isAdult: false) { ${fields} } }
+      popular: Page(perPage: 12) { media(type: ANIME, sort: POPULARITY_DESC, isAdult: false) { ${fields} } }
+      trendingManga: Page(perPage: 18) { media(type: MANGA, sort: TRENDING_DESC, isAdult: false) { ${fields} } }
+      popularManga: Page(perPage: 18) { media(type: MANGA, sort: POPULARITY_DESC, isAdult: false) { ${fields} } }
+    }`
+  );
+  return {
+    trending: data.trending?.media || [], popular: data.popular?.media || [],
+    trendingManga: data.trendingManga?.media || [], popularManga: data.popularManga?.media || []
+  };
 }
 
 export async function getMangaVideoCatalogue(page = 1, genre?: string): Promise<Anime[]> {

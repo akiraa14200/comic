@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef,
 import { Link, Route, Routes, useNavigate, useParams, useLocation, type Location } from 'react-router-dom';
 import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft } from 'lucide-react';
 // The application UI and page components are defined below.
-import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getPopularManga, getSeasonal, getTrending, getTrendingManga, getRelatedVideos, enrichVideoMetadata, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
+import { Anime, AnimeCharacter, getAnime, peekAnime, rememberPreviews, applyCachedVideoMetadata, enrichVideoMetadataProgressive, getAnimeCharacters, getPopular, getPopularManga, getSeasonal, getTrending, getTrendingManga, getRelatedVideos, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { AnimeComments } from './components/AnimeComments';
@@ -12,6 +12,31 @@ import { AdminWorkspace } from './components/AdminWorkspace';
 import './components/admin-workspace.css';
 import { useAmbientGlow } from './components/AmbientGlow';
 import { youtubeAmbientFrames } from './lib/ambient';
+import { RichText } from './components/RichText';
+import { readPersisted, writePersisted } from './lib/persist';
+
+/** Calls onReach when the returned element scrolls near the viewport (infinite loading). */
+function useNearViewport(onReach: () => void, enabled: boolean) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const callback = useRef(onReach);
+  callback.current = onReach;
+  useEffect(() => {
+    const node = ref.current;
+    if (!enabled || !node || !('IntersectionObserver' in window)) return;
+    const observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) callback.current(); }, { rootMargin: '900px 0px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [enabled]);
+  return ref;
+}
+
+/** Deterministic 0..1 value per id for this app session: feeds feel random but never reshuffle while you scroll. */
+const SESSION_SEED = Math.floor(Math.random() * 1e9);
+const stableRandom = (id: string) => {
+  let h = 2166136261 ^ SESSION_SEED;
+  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) % 100000) / 100000;
+};
 
 /** True while the bottom-navigation tab that owns this subtree is the visible one. */
 const TabActiveContext = createContext(true);
@@ -90,21 +115,43 @@ function useLibrary() {
   return { saved, history, toggle, remember, statuses, setLibraryStatus };
 }
 
+type HomeSnapshot = { trending: Anime[]; popular: Anime[]; seasonal: Anime[]; trendingManga: Anime[]; popularManga: Anime[] };
+const HOME_CACHE_KEY = 'home';
+const HOME_CACHE_AGE = 24 * 60 * 60 * 1000;
+
 function Home() {
-  const [trending, setTrending] = useState<Anime[]>([]);
-  const [popular, setPopular] = useState<Anime[]>([]);
-  const [seasonal, setSeasonal] = useState<Anime[]>([]);
-  const [trendingManga, setTrendingMangaItems] = useState<Anime[]>([]);
-  const [popularManga, setPopularMangaItems] = useState<Anime[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Stale-while-revalidate: show the last good catalogue instantly, then refresh it.
+  const [snapshot] = useState(() => { const value = readPersisted<HomeSnapshot>(HOME_CACHE_KEY, HOME_CACHE_AGE); if (value) Object.values(value).forEach(rememberPreviews); return value; });
+  const [trending, setTrending] = useState<Anime[]>(snapshot?.trending || []);
+  const [popular, setPopular] = useState<Anime[]>(snapshot?.popular || []);
+  const [seasonal, setSeasonal] = useState<Anime[]>(snapshot?.seasonal || []);
+  const [trendingManga, setTrendingMangaItems] = useState<Anime[]>(snapshot?.trendingManga || []);
+  const [popularManga, setPopularMangaItems] = useState<Anime[]>(snapshot?.popularManga || []);
+  const [loading, setLoading] = useState(!snapshot);
   const [error, setError] = useState('');
   const { saved, history, toggle } = useLibrary();
   useEffect(() => {
     let active = true;
-    Promise.all([getTrending(), getPopular(), getSeasonal(), getTrendingManga(), getPopularManga()])
-      .then(([a,b,c,d,e]) => { if (active) { setTrending(a); setPopular(b); setSeasonal(c); setTrendingMangaItems(d); setPopularMangaItems(e); } })
-      .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime right now.'); })
-      .finally(() => { if (active) setLoading(false); });
+    // Each section appears as soon as its own data arrives; one failing source no longer blanks the page.
+    const sources: [keyof HomeSnapshot, () => Promise<Anime[]>, (items: Anime[]) => void][] = [
+      ['trending', getTrending, setTrending], ['popular', getPopular, setPopular], ['seasonal', getSeasonal, setSeasonal],
+      ['trendingManga', getTrendingManga, setTrendingMangaItems], ['popularManga', getPopularManga, setPopularMangaItems]
+    ];
+    const fresh: Partial<HomeSnapshot> = {};
+    Promise.allSettled(sources.map(([key, load, set]) => load().then(items => {
+      if (!active) return;
+      fresh[key] = items;
+      if (items.length || !snapshot?.[key]?.length) set(items);
+      setLoading(false);
+    }))).then(results => {
+      if (!active) return;
+      setLoading(false);
+      const failed = results.filter(result => result.status === 'rejected') as PromiseRejectedResult[];
+      if (failed.length === results.length && !snapshot) setError(failed[0].reason instanceof Error ? failed[0].reason.message : 'Could not load anime right now.');
+      else setError('');
+      if (!failed.length) writePersisted(HOME_CACHE_KEY, fresh);
+      else if (Object.keys(fresh).length) writePersisted(HOME_CACHE_KEY, { ...(snapshot || {}), ...fresh });
+    });
     return () => { active = false; };
   }, []);
   const [heroIndex, setHeroIndex] = useState(0);
@@ -176,6 +223,7 @@ function SearchPage() {
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not load more titles.'); }
     finally { setLoadingMore(false); }
   };
+  const searchSentinel = useNearViewport(() => { void loadMore(); }, hasMore && !busy && !loadingMore && !error && items.length > 0);
   const genres = ['Action','Adventure','Comedy','Drama','Fantasy','Horror','Mystery','Romance','Sci-Fi','Slice of Life','Sports','Supernatural'];
   return <main className="content-page browse-page"><div className="page-heading"><span className="eyebrow">THE ANILIST CATALOGUE</span><h1>Explore <em>anime & manga.</em></h1><p>Search across anime, manga, manhwa, manhua and light novels.</p></div>
     <div className="filter-bar browse-filters"><label className="large-search"><Search size={19}/><input value={term} onChange={e => setTerm(e.target.value)} placeholder="Search titles, series, stories..." autoComplete="off"/></label>
@@ -186,13 +234,42 @@ function SearchPage() {
     <div className="browse-results-head"><div className="results-caption">{busy ? 'Updating catalogue…' : `${items.length} AniList titles loaded`}{term && <span> for “{term}”</span>}</div></div>
     {error && <div className="notice">{error}</div>}
     {busy && !items.length ? <div className="anime-grid">{Array.from({length:8},(_,i)=><div className="skeleton-card" key={i}><div className="skeleton-poster"/><div className="skeleton-line"/></div>)}</div> :
-      items.length ? <><div className="anime-grid">{items.map(item=><AnimeCard key={item.id} anime={item} saved={saved.some(a=>a.id===item.id)} onSave={toggle}/>)}</div>{hasMore && <div className="load-more-wrap"><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading more titles…':'Load more titles'}</button></div>}</> :
+      items.length ? <><div className="anime-grid">{items.map(item=><AnimeCard key={item.id} anime={item} saved={saved.some(a=>a.id===item.id)} onSave={toggle}/>)}</div>{hasMore && <div className="load-more-wrap" ref={searchSentinel}><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading more titles…':'Load more titles'}</button></div>}</> :
       <div className="empty-state"><Search size={28}/><h3>No anime or manga found</h3><p>Try another title or choose a different filter.</p></div>}
   </main>;
 }
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function formatReleaseDate(date?: { year?: number; month?: number; day?: number }, fallbackYear?: number) {
+  if (!date?.year) return fallbackYear ? String(fallbackYear) : 'Not announced';
+  if (!date.month) return String(date.year);
+  return [date.day, MONTHS[date.month - 1], date.year].filter(Boolean).join(' ');
+}
+/** "NOT_YET_RELEASED" → "Not yet released"; already-friendly values ("Ongoing") are kept. */
+function prettyEnum(value?: string) {
+  if (!value) return '';
+  if (!/^[A-Z0-9_]+$/.test(value)) return value;
+  const text = value.replaceAll('_', ' ').toLowerCase();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+const regionNames = (() => { try { return new Intl.DisplayNames(['en'], { type: 'region' }); } catch { return null; } })();
+function countryName(code?: string) {
+  if (!code) return '';
+  if (!/^[A-Z]{2}$/.test(code)) return code;
+  try { return regionNames?.of(code) || code; } catch { return code; }
+}
+/** AniList often lists the same site several times (one per language); show each once, labelled. */
+function uniqueSourceLinks(links: { url: string; site: string; language?: string }[]) {
+  const seenUrl = new Set<string>(); const counts = new Map<string, number>();
+  const valid = links.filter(link => link.url?.startsWith('https://') && !seenUrl.has(link.url) && !!seenUrl.add(link.url));
+  valid.forEach(link => counts.set(link.site, (counts.get(link.site) || 0) + 1));
+  const seenLabel = new Set<string>();
+  return valid.map(link => ({ url: link.url, label: (counts.get(link.site) || 0) > 1 && link.language ? `${link.site || 'External source'} (${link.language})` : link.site || 'External source' }))
+    .filter(link => !seenLabel.has(link.label) && !!seenLabel.add(link.label)).slice(0, 14);
+}
+
 function DetailPage({ user }: { user: User | null }) {
   const { id } = useParams();
-  const [anime, setAnime] = useState<Anime | null>(null);
+  const [anime, setAnime] = useState<Anime | null>(() => peekAnime(id || ''));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -207,10 +284,10 @@ function DetailPage({ user }: { user: User | null }) {
 
   useEffect(() => {
     let active = true;
-    setLoading(true); setError(''); setAnime(null); setActiveTab('overview'); setSelectedCharacter(null); setCharacterPage(1);
+    setLoading(true); setError(''); setAnime(peekAnime(id || '')); setActiveTab('overview'); setSelectedCharacter(null); setCharacterPage(1);
     const animeId = id || '';
     getAnime(animeId)
-      .then(data => { if (active) { setAnime(data); if (!data) setError('AniList could not find this entry.'); } })
+      .then(data => { if (active) { setAnime(current => data || current); if (!data) setError('AniList could not find this entry.'); } })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime metadata.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -235,7 +312,8 @@ function DetailPage({ user }: { user: User | null }) {
     } finally { setLoadingCharacters(false); }
   };
 
-  if (loading) return <main className="content-page"><div className="detail-skeleton"/><p className="metadata-loading-note">Loading entry information and character data…</p></main>;
+  // With a preview from the card that was tapped, the page renders immediately; only a cold open shows the skeleton.
+  if (loading && !anime) return <main className="content-page"><div className="detail-skeleton"/><p className="metadata-loading-note">Loading entry information and character data…</p></main>;
   if (!anime) return <main className="content-page"><div className="empty-state"><h2>Entry unavailable</h2><p>{error || 'This title may no longer be available.'}</p><button className="secondary-btn" onClick={() => setAttempt(value => value + 1)}><RotateCw size={15}/> Try again</button><Link className="secondary-btn" to="/search">Back to explore</Link></div></main>;
 
   const isSaved = saved.some(a => a.id === anime.id);
@@ -244,9 +322,10 @@ function DetailPage({ user }: { user: User | null }) {
   const staff = anime.staff?.edges || [];
   const authors = staff.filter(item => /author|writer|original creator|story/i.test(item.role)).map(item => item.node.name.full).filter(Boolean);
   const artists = staff.filter(item => /artist|illustrat|character design|art direction|story & art/i.test(item.role)).map(item => item.node.name.full).filter(Boolean);
-  const releaseDate = anime.startDate?.year
-    ? [anime.startDate.year, anime.startDate.month, anime.startDate.day].filter(Boolean).join('-')
-    : anime.seasonYear ? String(anime.seasonYear) : 'Not announced';
+  const releaseDate = formatReleaseDate(anime.startDate, anime.seasonYear);
+  const statusLabel = prettyEnum(anime.status);
+  const pending = loading ? 'Loading…' : '';
+  const sourceLinks = uniqueSourceLinks(anime.externalLinks || []);
   const sourceName = anime.source?.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, char => char.toUpperCase()) || 'Not specified';
   const tabs = [
     { id: 'overview' as const, label: 'Overview', icon: <Info size={16}/> },
@@ -268,7 +347,7 @@ function DetailPage({ user }: { user: User | null }) {
           <div className="detail-stats">
             {anime.averageScore ? <span><Star size={15} fill="currentColor"/> {(anime.averageScore/10).toFixed(1)} / 10</span> : null}
             <span><Play size={14}/> {anime.episodes ?? '—'} episodes</span>
-            <span><Clock3 size={14}/> {anime.status?.replaceAll('_',' ') || 'Unknown status'}</span>
+            <span><Clock3 size={14}/> {statusLabel || 'Unknown status'}</span>
           </div>
           <div className="genre-tags">{anime.genres?.map(g=><span key={g}>{g}</span>)}</div>
           <div className="hero-actions">\n            <button className="primary-btn" onClick={start}><Play size={16} fill="currentColor"/> Open player</button>
@@ -286,7 +365,7 @@ function DetailPage({ user }: { user: User | null }) {
 
       {activeTab === 'overview' && <section className="entry-panel overview-panel">
         <div className="entry-section-heading"><span className="eyebrow">THE STORY</span><h2>Overview</h2></div>
-        <div className="overview-description">{cleanDescription(anime.description) || 'No description is available for this entry yet.'}</div>
+        <div className="overview-description"><RichText text={anime.description} fallback={loading ? 'Loading description…' : 'No description is available for this entry yet.'}/></div>
         <div className="overview-trailer">
           <div className="entry-section-heading"><span className="eyebrow">OFFICIAL PREVIEW</span><h2>Trailer</h2></div>
           {trailerId ? <TrailerFrame trailerId={trailerId} title={`Trailer for ${titleOf(anime)}`}/> :
@@ -301,7 +380,7 @@ function DetailPage({ user }: { user: User | null }) {
 
       {activeTab === 'characters' && <section className="entry-panel characters-panel">
         <div className="entry-section-heading"><span className="eyebrow">CAST & PROFILES</span><h2>Characters <small>{anime.characters?.edges.length || 0}{anime.characters?.pageInfo.hasNextPage?'+':''}</small></h2><p>Select a character to open their profile.</p></div>
-        {anime.characters?.edges.length ? <div className="entry-character-grid">{anime.characters.edges.map(({node,role})=><button className="entry-character-card" key={node.id} onClick={()=>setSelectedCharacter(node)}>
+        {loading && !anime.characters?.edges.length ? <div className="entry-character-grid" aria-label="Loading characters">{Array.from({length:8},(_,i)=><div className="skeleton-card" key={i}><div className="skeleton-poster"/><div className="skeleton-line"/></div>)}</div> : anime.characters?.edges.length ? <div className="entry-character-grid">{anime.characters.edges.map(({node,role})=><button className="entry-character-card" key={node.id} onClick={()=>setSelectedCharacter(node)}>
           <img src={node.image?.large || node.image?.medium || ''} alt={node.name.full || 'Character'} loading="lazy" onError={event=>{event.currentTarget.style.visibility='hidden';}}/>
           <span className="entry-character-name">{node.name.full || 'Unknown character'}</span><small>{role || 'Character'}</small>
         </button>)}</div> : <div className="entry-empty"><Users size={22}/><span>Character information is not available for this entry yet.</span></div>}
@@ -331,7 +410,7 @@ function DetailPage({ user }: { user: User | null }) {
             </section>
             <section className="character-profile-section">
               <div className="character-profile-section-title"><span>02</span><h3>Biography</h3></div>
-              <div className="character-bio">{cleanDescription(selectedCharacter.description) || 'No biography is available for this character yet.'}</div>
+              <div className="character-bio"><RichText text={selectedCharacter.description} fallback="No biography is available for this character yet."/></div>
             </section>
             {selectedCharacter.siteUrl && <a className="secondary-btn character-source-link" href={selectedCharacter.siteUrl} target="_blank" rel="noreferrer">View full AniList profile <ExternalLink size={14}/></a>}
           </section>
@@ -342,16 +421,16 @@ function DetailPage({ user }: { user: User | null }) {
         <div className="entry-section-heading"><span className="eyebrow">ENTRY INFORMATION</span><h2>Details</h2></div>
         <div className="entry-details-grid">
           <div><span>Type</span><strong>{anime.format || 'Not listed'}</strong></div>
-          <div><span>Status</span><strong>{anime.status?.replaceAll('_',' ') || 'Not listed'}</strong></div>
+          <div><span>Status</span><strong>{statusLabel || 'Not listed'}</strong></div>
           <div><span>Release</span><strong>{releaseDate}</strong></div>
-          <div><span>Author / creator</span><strong>{authors.length?authors.join(', '):'Not listed by AniList'}</strong></div>
-          <div><span>Artist</span><strong>{artists.length?artists.join(', '):'Not listed by AniList'}</strong></div>
-          <div><span>Country</span><strong>{anime.countryOfOrigin || 'Not listed'}</strong></div>
+          <div><span>Author / creator</span><strong>{authors.length?authors.join(', '):pending||'Not listed by AniList'}</strong></div>
+          <div><span>Artist</span><strong>{artists.length?artists.join(', '):pending||'Not listed by AniList'}</strong></div>
+          <div><span>Country</span><strong>{countryName(anime.countryOfOrigin) || 'Not listed'}</strong></div>
           <div className="detail-wide"><span>Alternative titles</span><strong>{[anime.title.english,anime.title.romaji,anime.title.native,...(anime.synonyms||[])].filter((value,index,array)=>value && array.indexOf(value)===index).join(' · ') || 'Not listed'}</strong></div>
           <div><span>Source material</span><strong>{sourceName}</strong></div>
           <div><span>Studio</span><strong>{anime.studios?.nodes?.map(studio=>studio.name).join(', ') || 'Not listed'}</strong></div>
         </div>
-        <div className="entry-source-links"><h3><Globe size={17}/> Source links</h3><div>{anime.siteUrl && <a href={anime.siteUrl} target="_blank" rel="noreferrer">AniList entry <ExternalLink size={13}/></a>}{(anime.externalLinks||[]).filter(link=>link.url?.startsWith('https://')).slice(0,12).map(link=><a key={link.url} href={link.url} target="_blank" rel="noreferrer">{link.site || 'External source'} <ExternalLink size={13}/></a>)}</div></div>
+        <div className="entry-source-links"><h3><Globe size={17}/> Source links</h3><div>{anime.siteUrl && <a href={anime.siteUrl} target="_blank" rel="noreferrer">AniList entry <ExternalLink size={13}/></a>}{sourceLinks.map(link=><a key={link.url} href={link.url} target="_blank" rel="noreferrer">{link.label} <ExternalLink size={13}/></a>)}{loading&&!sourceLinks.length&&<span className="fine-print">Loading links…</span>}</div></div>
       </section>}
 
       {activeTab === 'comments' && <div className="entry-comments-panel"><AnimeComments animeId={anime.id} animeTitle={titleOf(anime)} user={user}/></div>}
@@ -502,14 +581,28 @@ function VideoPage() {
   const tabActive=useTabActive();
   useEffect(()=>{if(!tabActive)setPlayingId(null);},[tabActive]);
 
+  // Patch titles/channels into cards as each background batch arrives (order never changes).
+  const enrich=(list:RelatedVideo[],isActive:()=>boolean)=>{
+    void enrichVideoMetadataProgressive(list,()=>{
+      if(!isActive())return;
+      setVideos(old=>applyCachedVideoMetadata(old));
+    });
+  };
   useEffect(()=>{
     let active=true;
-    getRelatedVideos(1).then(data=>enrichVideoMetadata(data)).then(data=>{
+    // Instant first paint from the last visit, then refresh in the background.
+    const snapshot=readPersisted<RelatedVideo[]>('video-feed',12*60*60*1000);
+    if(snapshot?.length){setVideos(applyCachedVideoMetadata(snapshot));setLoading(false);}
+    getRelatedVideos(1).then(data=>{
       if(!active)return;
-      setVideos(data);
+      // Show cards right away (with any titles cached on this device); fetch the rest progressively.
+      setVideos(applyCachedVideoMetadata(data));
       setHasMore(data.length>0);
+      setLoading(false);
+      writePersisted('video-feed',data);
+      enrich(data,()=>active);
     }).catch(e=>{
-      if(active)setError(e instanceof Error?e.message:'Could not load videos.');
+      if(active&&!snapshot?.length)setError(e instanceof Error?e.message:'Could not load videos.');
     }).finally(()=>{if(active)setLoading(false);});
     return()=>{active=false;};
   },[]);
@@ -539,7 +632,7 @@ function VideoPage() {
       return genreScore+formatScore+titleScore;
     };
     const shuffle=(items:RelatedVideo[])=>{
-      const result=items.map(video=>({video,score:score(video),random:Math.random()}));
+      const result=items.map(video=>({video,score:score(video),random:stableRandom(video.id)}));
       result.sort((a,b)=>b.score-a.score||a.random-b.random);
       return result.map(item=>item.video);
     };
@@ -557,7 +650,7 @@ function VideoPage() {
       blocks.push({kind:'videos',items:recommendedRegular.slice(videoIndex,videoIndex+10)});
       videoIndex+=10;
       if(shortIndex<recommendedShorts.length){
-        const batchSize=6+Math.floor(Math.random()*5);
+        const batchSize=6+Math.floor(stableRandom('shorts-'+blocks.length)*5);
         const count=Math.min(batchSize,recommendedShorts.length-shortIndex);
         blocks.push({kind:'shorts',items:recommendedShorts.slice(shortIndex,shortIndex+count)});
         shortIndex+=count;
@@ -575,16 +668,19 @@ function VideoPage() {
     setError('');
     try{
       const raw=await getRelatedVideos(page+1);
-      const data=await enrichVideoMetadata(raw);
-      setVideos(old=>[...old,...data.filter(video=>!old.some(existing=>existing.id===video.id))]);
+      const data=applyCachedVideoMetadata(raw);
+      setVideos(old=>{const ids=new Set(old.map(video=>video.id));return [...old,...data.filter(video=>!ids.has(video.id))];});
       setPage(current=>current+1);
       setHasMore(data.length>0);
+      enrich(data,()=>true);
     }catch(e){
       setError(e instanceof Error?e.message:'Could not load more videos.');
     }finally{
       setLoadingMore(false);
     }
   };
+
+  const videoSentinel=useNearViewport(()=>{void loadMore();},!loading&&hasMore&&!loadingMore&&!error);
 
   const filterBar=<>
     <nav className="yt-filter-bar" aria-label="Video format">
@@ -616,7 +712,7 @@ function VideoPage() {
       <div className="yt-section-heading"><div><h2>{format==='short'?'Shorts':'Videos'}</h2><p>{format==='short'?'Quick vertical clips':'Trailers, edits and community videos'}</p></div><span>{selected.length} results</span></div>
       <div className={format==='short'?'yt-shorts-grid':'yt-video-feed'}>{selected.map(video=>videoCard(video,format==='short'))}</div>
     </section>:empty;})()}
-    {!loading&&hasMore&&<div className="load-more-wrap"><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading…':'Load more'}</button></div>}
+    {!loading&&hasMore&&<div className="load-more-wrap" ref={videoSentinel}><button className="secondary-btn load-more-btn" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading…':'Load more'}</button></div>}
     <p className="yt-disclaimer">Playback availability depends on each original video provider and its embedding settings.</p>
   </main>;
 }
