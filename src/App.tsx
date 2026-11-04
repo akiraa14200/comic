@@ -5,6 +5,7 @@ import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, Arrow
 import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getPopularManga, getSeasonal, getTrending, getTrendingManga, getRelatedVideos, enrichVideoMetadata, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
+import { searchFallbackMetadata } from './lib/metadata-fallback';
 import { AnimeComments } from './components/AnimeComments';
 import { ExtensionPage } from './components/ExtensionPage';
 import './components/extension-page.css';
@@ -184,6 +185,9 @@ function DetailPage({ user }: { user: User | null }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
+  const [fallbackQuery, setFallbackQuery] = useState('');
+  const [fallbackResults, setFallbackResults] = useState<{provider:string;anime:Anime}[]>([]);
+  const [fallbackBusy, setFallbackBusy] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'characters' | 'details' | 'comments'>('overview');
   const [selectedCharacter, setSelectedCharacter] = useState<AnimeCharacter | null>(null);
   const [characterPage, setCharacterPage] = useState(1);
@@ -195,10 +199,10 @@ function DetailPage({ user }: { user: User | null }) {
 
   useEffect(() => {
     let active = true;
-    setLoading(true); setError(''); setAnime(null); setActiveTab('overview'); setSelectedCharacter(null); setCharacterPage(1);
+    setLoading(true); setError(''); setAnime(null); setFallbackResults([]); setActiveTab('overview'); setSelectedCharacter(null); setCharacterPage(1);
     const animeId = id || '';
     getAnime(animeId)
-      .then(data => { if (active) { setAnime(data); if (!data) setError('AniList could not find this entry.'); } })
+      .then(data => { if (active) { setAnime(data); if (!data) setError('This entry was not found in AniList or the connected local catalogue. Search other metadata providers below.'); } })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime metadata.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -224,7 +228,14 @@ function DetailPage({ user }: { user: User | null }) {
   };
 
   if (loading) return <main className="content-page"><div className="detail-skeleton"/><p className="metadata-loading-note">Loading entry information and character data…</p></main>;
-  if (!anime) return <main className="content-page"><div className="empty-state"><h2>Entry unavailable</h2><p>{error || 'This title may no longer be available.'}</p><button className="secondary-btn" onClick={() => setAttempt(value => value + 1)}><RotateCw size={15}/> Try again</button><Link className="secondary-btn" to="/search">Back to explore</Link></div></main>;
+  if (!anime) return <main className="content-page"><div className="empty-state"><h2>Entry unavailable</h2><p>{error || 'This title may no longer be available.'}</p><button className="secondary-btn" onClick={() => setAttempt(value => value + 1)}><RotateCw size={15}/> Try again</button><Link className="secondary-btn" to="/search">Back to explore</Link>
+    <form className="fallback-metadata-search" onSubmit={async event => { event.preventDefault(); if(fallbackQuery.trim().length<2)return; setFallbackBusy(true); setFallbackResults([]); setError('Searching Jikan, Kitsu and MangaDex…'); try { const results=await searchFallbackMetadata(fallbackQuery, /manga|manhwa|manhua|webtoon|comic/i.test(id||'')); setFallbackResults(results); setError(results.length?'Choose a matching result from another metadata provider.':'No matching result found. Try an alternate or English title.'); } catch { setError('Alternative providers could not be reached. Please try again later.'); } finally { setFallbackBusy(false); } }}>
+      <label htmlFor="fallback-title">Search other metadata databases</label>
+      <div className="fallback-search-row"><input id="fallback-title" value={fallbackQuery} onChange={event=>setFallbackQuery(event.target.value)} placeholder="Enter anime or manga title…" minLength={2}/><button className="secondary-btn" type="submit" disabled={fallbackBusy}>{fallbackBusy?'Searching…':'Search'}</button></div>
+      <small>Sources: MyAnimeList (Jikan), Kitsu and MangaDex for manga. AniDB search is included as an external reference.</small>
+    </form>
+    {fallbackResults.length>0 && <div className="fallback-results">{fallbackResults.map(result=><button type="button" className="fallback-result" key={result.anime.id} onClick={()=>{setAnime(result.anime);setError('');setActiveTab('overview');}}><img src={imageOf(result.anime)||'/icons/ryko.svg'} alt="" loading="lazy"/><span><strong>{titleOf(result.anime)}</strong><small>{result.provider} · {result.anime.format||'Title'}</small></span><ChevronRight size={16}/></button>)}</div>}
+  </div></main>;
 
   const isSaved = saved.some(a => a.id === anime.id);
   const start = () => { remember(anime); setShowPlayer(true); };
