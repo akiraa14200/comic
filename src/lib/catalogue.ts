@@ -317,7 +317,7 @@ function findCachedCatalogueEntry(id: string): Anime | null {
 export async function getAnime(id: string): Promise<Anime | null> {
   if (!id) return null;
   return cached(`detail:${id}`, async () => {
-    const aniListMatch = id.match(/^anilist-([am])-(\\d+)$/);
+    const aniListMatch = id.match(/^anilist-([am])-(\d+)$/);
     let localRow: TitleRow | null = null;
     let remoteAnime: Anime | null = null;
 
@@ -341,8 +341,16 @@ export async function getAnime(id: string): Promise<Anime | null> {
       // Local rows customize covers, banners and trailers. A Supabase outage
       // must not turn a valid AniList title into an unavailable detail page.
       try {
-        const { data, error } = await supabase
+        const overrideLookup = supabase
           .from('titles').select('*').eq('anilist_id', numericId).maybeSingle();
+        const lookupResult = await Promise.race([
+          overrideLookup,
+          new Promise<never>((_, reject) => window.setTimeout(
+            () => reject(new Error('Supabase title override lookup timed out.')),
+            2500
+          ))
+        ]);
+        const { data, error } = lookupResult;
         if (error) throw error;
         localRow = (data || null) as TitleRow | null;
       } catch (error) {
