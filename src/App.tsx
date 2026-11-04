@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft } from 'lucide-react';
 // The application UI and page components are defined below.
@@ -647,30 +647,9 @@ function PrivacyPage() {
 export default function App() {
   const location = useLocation();
   const [visited, setVisited] = useState<string[]>(() => [location.pathname]);
-  const scrollPositions = useRef(new Map<string, number>());
-  const currentPath = useRef(location.pathname);
-  const ignoreScrollEvent = useRef(false);
-
-  // Keep previously opened screens mounted so catalogue data and UI state are reused.
+  // Keep each visited tab mounted. Its own scroll container retains scrollTop independently.
   useEffect(() => {
     setVisited(old => old.includes(location.pathname) ? old : [...old, location.pathname]);
-  }, [location.pathname]);
-
-  // Store each tab's scroll position while the user scrolls.
-  useEffect(() => {
-    const savePosition = () => { if (!ignoreScrollEvent.current) scrollPositions.current.set(currentPath.current, window.scrollY); };
-    window.addEventListener('scroll', savePosition, { passive: true });
-    return () => window.removeEventListener('scroll', savePosition);
-  }, []);
-
-  useLayoutEffect(() => {
-    ignoreScrollEvent.current = true;
-    currentPath.current = location.pathname;
-    const savedPosition = scrollPositions.current.get(location.pathname) || 0;
-    requestAnimationFrame(() => {
-      window.scrollTo(0, savedPosition);
-      requestAnimationFrame(() => { ignoreScrollEvent.current = false; });
-    });
   }, [location.pathname]);
 
   const [user, setUser] = useState<User | null>(null);
@@ -715,16 +694,19 @@ export default function App() {
   const isDetail = path.startsWith('/anime/');
   const isKnown = ['/', '/search', '/watchlist', '/video', '/account', '/privacy', '/extensions', '/admin'].includes(path) || isDetail;
 
+  const footer = <footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer>;
+  const tab = (route: string, content: React.ReactNode) => <div className="tab-scroll-container" style={{display:show(route)?'block':'none'}} aria-hidden={!show(route)}>{content}{footer}</div>;
+
   return <><Header user={user} isAdmin={isAdmin} onSignOut={signOut}/>
-    {visited.includes('/') && <div style={{display:show('/')?'block':'none'}}><Home/></div>}
-    {visited.includes('/search') && <div style={{display:show('/search')?'block':'none'}}><SearchPage/></div>}
-    {isDetail && <div><DetailPage key={path} user={user}/></div>}
-    {visited.includes('/watchlist') && <div style={{display:show('/watchlist')?'block':'none'}}><WatchlistPage/></div>}
-    {visited.includes('/video') && <div style={{display:show('/video')?'block':'none'}}><VideoPage/></div>}
-    {visited.includes('/account') && <div style={{display:show('/account')?'block':'none'}}><AccountPage user={user}/></div>}
-    {visited.includes('/privacy') && <div style={{display:show('/privacy')?'block':'none'}}><PrivacyPage/></div>}
-    {visited.includes('/extensions') && <div style={{display:show('/extensions')?'block':'none'}}><ExtensionPage/></div>}
-    {visited.includes('/admin') && <div style={{display:show('/admin')?'block':'none'}}><AdminWorkspace/></div>}
-    {!isKnown && <main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}
-    <BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer></>;
+    {visited.includes('/') && tab('/', <Home/>)}
+    {visited.includes('/search') && tab('/search', <SearchPage/>)}
+    {isDetail && tab(path, <DetailPage key={path} user={user}/>)}
+    {visited.includes('/watchlist') && tab('/watchlist', <WatchlistPage/>)}
+    {visited.includes('/video') && tab('/video', <VideoPage/>)}
+    {visited.includes('/account') && tab('/account', <AccountPage user={user}/>)}
+    {visited.includes('/privacy') && tab('/privacy', <PrivacyPage/>)}
+    {visited.includes('/extensions') && tab('/extensions', <ExtensionPage/>)}
+    {visited.includes('/admin') && tab('/admin', <AdminWorkspace/>)}
+    {!isKnown && tab(path, <main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>)}
+    <BottomNavigation/></>;
 }
