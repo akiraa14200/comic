@@ -649,20 +649,87 @@ function PrivacyPage() {
 function SettingsPage() {
   const [reducedMotion, setReducedMotion] = useState(()=>readStore('ryko-reduced-motion', false));
   const [compactLayout, setCompactLayout] = useState(()=>readStore('ryko-compact-layout', false));
+  const [theme, setTheme] = useState<'dark'|'light'>(()=>readStore('ryko-theme', 'dark'));
+  const [language, setLanguage] = useState(()=>readStore('ryko-language', 'en'));
+  const [releaseAlerts, setReleaseAlerts] = useState(()=>readStore('ryko-release-alerts', false));
+  const [dailyDigest, setDailyDigest] = useState(()=>readStore('ryko-daily-digest', false));
+  const [morningTime, setMorningTime] = useState(()=>readStore('ryko-digest-morning', '09:00'));
+  const [eveningTime, setEveningTime] = useState(()=>readStore('ryko-digest-evening', '20:00'));
+  const [permission, setPermission] = useState<NotificationPermission>(()=>('Notification' in window ? Notification.permission : 'denied'));
+  const [installAvailable, setInstallAvailable] = useState(false);
+  const [notice, setNotice] = useState('');
   useEffect(()=>{ localStorage.setItem('ryko-reduced-motion', JSON.stringify(reducedMotion)); document.documentElement.classList.toggle('ryko-reduced-motion', reducedMotion); },[reducedMotion]);
   useEffect(()=>{ localStorage.setItem('ryko-compact-layout', JSON.stringify(compactLayout)); document.documentElement.classList.toggle('ryko-compact-layout', compactLayout); },[compactLayout]);
+  useEffect(()=>{ localStorage.setItem('ryko-theme', JSON.stringify(theme)); document.documentElement.classList.toggle('ryko-light', theme==='light'); document.querySelector('meta[name="theme-color"]')?.setAttribute('content',theme==='light'?'#f4f5fa':'#08090d'); },[theme]);
+  useEffect(()=>{ localStorage.setItem('ryko-language', JSON.stringify(language)); document.documentElement.lang=language; },[language]);
+  useEffect(()=>{ localStorage.setItem('ryko-release-alerts', JSON.stringify(releaseAlerts)); },[releaseAlerts]);
+  useEffect(()=>{ localStorage.setItem('ryko-daily-digest', JSON.stringify(dailyDigest)); },[dailyDigest]);
+  useEffect(()=>{ localStorage.setItem('ryko-digest-morning', JSON.stringify(morningTime)); },[morningTime]);
+  useEffect(()=>{ localStorage.setItem('ryko-digest-evening', JSON.stringify(eveningTime)); },[eveningTime]);
+  useEffect(()=>{
+    const update=()=>setInstallAvailable(!!(window as any).__rykoInstallPrompt);
+    window.addEventListener('beforeinstallprompt',update);
+    window.addEventListener('appinstalled',update);
+    update();
+    return ()=>{window.removeEventListener('beforeinstallprompt',update);window.removeEventListener('appinstalled',update);};
+  },[]);
+  const requestNotifications = async () => {
+    if (!('Notification' in window)) { setNotice('This browser does not support notifications. Try installing RykoCollection in Chrome on Android.'); return; }
+    const result=await Notification.requestPermission(); setPermission(result);
+    if(result==='granted') {
+      try {
+        const registration=await navigator.serviceWorker?.ready;
+        if(registration) await registration.showNotification('RykoCollection notifications enabled',{body:'You can now receive notifications from this device when push delivery is configured.',icon:'/icons/ryko-192.png',badge:'/icons/ryko-192.png'});
+        else new Notification('RykoCollection notifications enabled',{body:'Notification permission is ready on this device.'});
+        setNotice('Notification permission granted on this device.');
+      } catch { setNotice('Permission granted, but this browser could not show a test notification.'); }
+    } else setNotice(result==='denied'?'Notifications are blocked in browser settings.':'Notification permission was not granted.');
+  };
+  const installApp = async () => {
+    const prompt=(window as any).__rykoInstallPrompt;
+    if(!prompt){setNotice('To install: open the browser menu and choose “Install app” or “Add to Home screen”.');return;}
+    prompt.prompt();
+    const choice=await prompt.userChoice;
+    (window as any).__rykoInstallPrompt=null; setInstallAvailable(false);
+    setNotice(choice?.outcome==='accepted'?'RykoCollection installation started.':'Installation was dismissed.');
+  };
+  const clearCache = async () => {
+    if(!window.confirm('Clear temporary app cache? Your watchlist, history, account and settings will be kept.')) return;
+    try {
+      if('caches' in window) await Promise.all((await caches.keys()).map(key=>caches.delete(key)));
+      setNotice('Temporary app cache cleared. Reloading…');
+      window.setTimeout(()=>window.location.reload(),350);
+    } catch { setNotice('Could not clear the browser cache. Use your browser site-data settings instead.'); }
+  };
   const clearLocalData = () => {
     if (!window.confirm('Clear your local watchlist, viewing history and library statuses on this device?')) return;
     ['kairo-watchlist','kairo-history','rykoc-library-status'].forEach(key=>localStorage.removeItem(key));
     window.location.reload();
   };
-  return <main className="content-page preferences-page"><div className="page-heading"><span className="eyebrow">MAKE RYKO YOURS</span><h1>App <em>settings.</em></h1><p>Adjust the browsing experience on this device.</p></div>
-    <section className="settings-group"><h2>Display & accessibility</h2>
-      <div className="settings-row"><div><strong>Reduce motion</strong><p>Turn off most interface animations and transitions.</p></div><button className={reducedMotion?'toggle active':'toggle'} role="switch" aria-checked={reducedMotion} aria-label="Reduce motion" onClick={()=>setReducedMotion(v=>!v)}><span/></button></div>
-      <div className="settings-row"><div><strong>Compact catalogue</strong><p>Show more anime and manga cards in each row.</p></div><button className={compactLayout?'toggle active':'toggle'} role="switch" aria-checked={compactLayout} aria-label="Compact catalogue" onClick={()=>setCompactLayout(v=>!v)}><span/></button></div>
+  const Toggle = ({value,onChange,label}:{value:boolean;onChange:(v:boolean)=>void;label:string}) => <button className={value?'toggle active':'toggle'} role="switch" aria-checked={value} aria-label={label} onClick={()=>onChange(!value)}><span/></button>;
+  return <main className="content-page preferences-page"><div className="page-heading"><span className="eyebrow">MAKE RYKO YOURS</span><h1>App <em>settings.</em></h1><p>Adjust the website and installed app on this device.</p></div>
+    <section className="settings-group"><h2>App & installation</h2>
+      <div className="settings-row"><div><strong>Install RykoCollection</strong><p>Add the website to your home screen and open it in an app-like window.</p></div><button className="secondary-btn" onClick={installApp}>{installAvailable?'Install app':'Install help'}</button></div>
+      <div className="settings-row"><div><strong>Appearance</strong><p>Choose a theme for browsing.</p></div><select className="settings-select" value={theme} onChange={e=>setTheme(e.target.value as 'dark'|'light')}><option value="dark">Dark</option><option value="light">Light</option></select></div>
+      <div className="settings-row"><div><strong>Language</strong><p>Preferred language for notification messages. The app interface is currently available in English.</p></div><select className="settings-select" value={language} onChange={e=>setLanguage(e.target.value)}><option value="en">English</option><option value="hi">Hindi</option></select></div>
     </section>
-    <section className="settings-group"><h2>Local storage</h2><div className="settings-row"><div><strong>Clear local library data</strong><p>Remove this device's watchlist, recently viewed titles and library statuses. Your account and comments are not affected.</p></div><button className="secondary-btn settings-danger" onClick={clearLocalData}>Clear data</button></div></section>
-    <p className="fine-print">These preferences are saved only in this browser or app on this device.</p>
+    <section className="settings-group"><h2>Display & accessibility</h2>
+      <div className="settings-row"><div><strong>Reduce motion</strong><p>Turn off most interface animations and transitions.</p></div><Toggle value={reducedMotion} onChange={setReducedMotion} label="Reduce motion"/></div>
+      <div className="settings-row"><div><strong>Compact catalogue</strong><p>Show more anime and manga cards in each row, including on mobile.</p></div><Toggle value={compactLayout} onChange={setCompactLayout} label="Compact catalogue"/></div>
+    </section>
+    <section className="settings-group"><h2>Notifications</h2>
+      <div className="settings-row"><div><strong>Device notification permission</strong><p>{permission==='granted'?'Permission granted on this device.':permission==='denied'?'Blocked by browser settings.':'Allow RykoCollection to show notifications on this device.'}</p></div><button className="secondary-btn" onClick={requestNotifications}>{permission==='granted'?'Test notification':'Enable'}</button></div>
+      <div className="settings-row"><div><strong>Saved anime & manga updates</strong><p>Preference for new episode or chapter alerts on titles in My List.</p></div><Toggle value={releaseAlerts} onChange={setReleaseAlerts} label="Saved title release alerts"/></div>
+      <div className="settings-row"><div><strong>Daily anime digest</strong><p>Preference for two daily updates about premieres, finales and trending anime topics.</p></div><Toggle value={dailyDigest} onChange={setDailyDigest} label="Daily anime digest"/></div>
+      {dailyDigest && <><div className="settings-row"><div><strong>Morning message</strong><p>Choose your first daily update time.</p></div><input className="settings-time" type="time" value={morningTime} onChange={e=>setMorningTime(e.target.value)}/></div><div className="settings-row"><div><strong>Evening message</strong><p>Choose your second daily update time.</p></div><input className="settings-time" type="time" value={eveningTime} onChange={e=>setEveningTime(e.target.value)}/></div></>}
+      <p className="settings-note">Your choices are saved on this device. Automatic episode/chapter monitoring and scheduled daily push delivery still require the secure notification server to be configured; enabling these preferences alone does not send alerts.</p>
+    </section>
+    <section className="settings-group"><h2>Storage & cache</h2>
+      <div className="settings-row"><div><strong>Clear cache</strong><p>Remove temporary website files. Your saved list and settings stay intact.</p></div><button className="secondary-btn" onClick={clearCache}>Clear cache</button></div>
+      <div className="settings-row"><div><strong>Clear local library data</strong><p>Remove this device's watchlist, recently viewed titles and library statuses. Your account and comments are not affected.</p></div><button className="secondary-btn settings-danger" onClick={clearLocalData}>Clear data</button></div>
+    </section>
+    {notice && <p className="settings-feedback" role="status">{notice}</p>}
+    <p className="fine-print">Preferences are stored in this browser. Account-based library sync is separate from local settings.</p>
   </main>;
 }
 
