@@ -10,6 +10,7 @@ import { ExtensionPage } from './components/ExtensionPage';
 import './components/extension-page.css';
 import { AdminWorkspace } from './components/AdminWorkspace';
 import './components/admin-workspace.css';
+import { attachVideoAmbientGlow } from './lib/ambient-glow';
 
 type StoredProgress = { id: string; title: string; image: string; progress: number; updated: number };
 function useTabRefresh(path: string) {
@@ -198,7 +199,7 @@ function DetailPage({ user }: { user: User | null }) {
     setLoading(true); setError(''); setAnime(null); setActiveTab('overview'); setSelectedCharacter(null); setCharacterPage(1);
     const animeId = id || '';
     getAnime(animeId)
-      .then(data => { if (active) { setAnime(data); if (!data) setError(' AniList returned no matching record for this entry ID. Check the entry link and try again.'); } })
+      .then(data => { if (active) { setAnime(data); if (!data) setError(' We couldn't retrieve this entry right now. Your connection or AniList may be temporarily unavailable. Please try again in a moment.'); } })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime metadata.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -415,6 +416,7 @@ function detectVideoFormat(url:string) {
 }
 function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo; short: boolean; playing: boolean; onPlay: () => void }) {
   const cardRef = useRef<HTMLElementTagNameMap['article'] | null>(null);
+  const thumbnailRef = useRef<HTMLDivElement | null>(null);
   const [nearViewport, setNearViewport] = useState(false);
   useEffect(() => {
     const node = cardRef.current;
@@ -431,6 +433,13 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
   }, []);
   const embed = videoEmbedUrl(video);
   const thumbnail = videoThumbnail(video);
+  useEffect(() => {
+    const container = thumbnailRef.current;
+    if (!container || !playing) return;
+    const nativeVideo = container.querySelector('video');
+    if (!nativeVideo) return;
+    return attachVideoAmbientGlow(container, nativeVideo);
+  }, [playing, nearViewport, video.id]);
   return <article ref={cardRef} className={`yt-video-card ${short?'yt-short-card':'yt-standard-card'}`}>
     {!nearViewport ? <>
       <div className="yt-thumbnail"><div className="yt-skeleton-thumb"/></div>
