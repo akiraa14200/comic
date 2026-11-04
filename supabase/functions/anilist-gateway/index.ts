@@ -19,7 +19,7 @@ function json(body: unknown, status = 200) {
 }
 
 function allowed(req: Request) {
-  const key = req.headers.get("apikey") || "";
+  const key = req.headers.get("apikey") || (req.method === "GET" ? new URL(req.url).searchParams.get("apikey") || "" : "");
   return PROJECT_KEYS.has(key);
 }
 
@@ -97,8 +97,8 @@ async function fetchWebsiteFallback(body: string) {
   });
   if (!home.ok) throw new Error(`AniList website returned HTTP ${home.status}`);
   const html = await home.text();
-  const token = html.match(/window\\.al_token\\s*=\\s*"([^"]+)"/)?.[1]
-    || html.match(/window\\.al_token\\s*=\\s*'([^']+)'/)?.[1];
+  const token = html.match(/window\.al_token\s*=\s*"([^"]+)"/)?.[1]
+    || html.match(/window\.al_token\s*=\s*'([^']+)'/)?.[1];
   const cookie = cookiesFromHeaders(home.headers);
   if (!token || !cookie) throw new Error("AniList website did not provide its CSRF token or session cookie.");
 
