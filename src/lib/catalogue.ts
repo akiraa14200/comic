@@ -231,18 +231,39 @@ async function fetchTitles(query: any): Promise<Anime[]> {
   throwIf(error);
   return ((data || []) as TitleRow[]).map(mapTitle);
 }
+
+function mergeCatalogueSources(remote: Anime[], local: Anime[], limit = 36): Anime[] {
+  const merged = new Map<string, Anime>();
+  for (const item of [...remote, ...local]) {
+    const key = item.anilistId ? "anilist:" + item.anilistId : "local:" + item.id;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, item);
+      continue;
+    }
+    const localItem = item.id.startsWith("anilist-") ? existing : item;
+    const providerItem = item.id.startsWith("anilist-") ? item : existing;
+    merged.set(key, {
+      ...providerItem,
+      id: providerItem.id,
+      coverImage: imageOf(localItem) ? localItem.coverImage : providerItem.coverImage,
+      bannerImage: localItem.bannerImage || providerItem.bannerImage,
+      trailer: localItem.trailer || providerItem.trailer,
+      trailerUrl: localItem.trailerUrl || providerItem.trailerUrl
+    });
+  }
+  return [...merged.values()].slice(0, limit);
+}
 export async function getTrending(): Promise<Anime[]> {
   return cached('trending', async () => {
     const [local, remote] = await Promise.allSettled([
       fetchTitles(supabase.from('titles').select('*').or('is_featured.eq.true,is_trending.eq.true').order('popularity', { ascending: false }).limit(18)),
       fetchAniListTrending()
     ]);
-    const merged = [
-      ...(remote.status === 'fulfilled' ? remote.value.map(mapAniListMedia) : []),
-      ...(local.status === 'fulfilled' ? local.value : [])
-    ];
-    const seen = new Set<string>();
-    return merged.filter(item => !seen.has(item.id) && !!seen.add(item.id)).slice(0, 36);
+    return mergeCatalogueSources(
+      remote.status === 'fulfilled' ? remote.value.map(mapAniListMedia) : [],
+      local.status === 'fulfilled' ? local.value : []
+    );
   });
 }
 export async function getPopular(): Promise<Anime[]> {
@@ -251,12 +272,10 @@ export async function getPopular(): Promise<Anime[]> {
       fetchTitles(supabase.from('titles').select('*').order('popularity', { ascending: false }).limit(18)),
       fetchAniListPopular()
     ]);
-    const merged = [
-      ...(remote.status === 'fulfilled' ? remote.value.map(mapAniListMedia) : []),
-      ...(local.status === 'fulfilled' ? local.value : [])
-    ];
-    const seen = new Set<string>();
-    return merged.filter(item => !seen.has(item.id) && !!seen.add(item.id)).slice(0, 36);
+    return mergeCatalogueSources(
+      remote.status === 'fulfilled' ? remote.value.map(mapAniListMedia) : [],
+      local.status === 'fulfilled' ? local.value : []
+    );
   });
 }
 export async function getTrendingManga(): Promise<Anime[]> {
@@ -265,9 +284,10 @@ export async function getTrendingManga(): Promise<Anime[]> {
       fetchTrendingManga(),
       fetchTitles(supabase.from('titles').select('*').in('media_type', ['Manga','Manhwa','Manhua','Light Novel','Web Novel']).order('popularity', { ascending: false }).limit(18))
     ]);
-    const items = [...(remote.status === 'fulfilled' ? remote.value.map(mapAniListMedia) : []), ...(local.status === 'fulfilled' ? local.value : [])];
-    const seen = new Set<string>();
-    return items.filter(item => !seen.has(item.id) && !!seen.add(item.id)).slice(0, 36);
+    return mergeCatalogueSources(
+      remote.status === 'fulfilled' ? remote.value.map(mapAniListMedia) : [],
+      local.status === 'fulfilled' ? local.value : []
+    );
   });
 }
 export async function getPopularManga(): Promise<Anime[]> {
