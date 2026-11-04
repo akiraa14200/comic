@@ -1,3 +1,4 @@
+import { useBackLayer } from '../lib/backNav';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bookmark, BookmarkCheck, ChevronLeft, Download, Flag, Play, Share2, X, ExternalLink } from 'lucide-react';
@@ -112,6 +113,7 @@ export function VideoActionMenu({ video, anchor, open, onClose, playing, onPlay,
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  useBackLayer(open, () => { if (view === 'report') setView('menu'); else onClose(); });
   useEffect(() => { if (open) { setView('menu'); setDetails(''); setReason(REPORT_REASONS[0]); } }, [open]);
   useEffect(() => {
     if (!open) return;

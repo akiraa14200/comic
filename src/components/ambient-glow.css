@@ -21,16 +21,23 @@
   filter:blur(var(--ambient-blur,40px)) saturate(var(--ambient-saturation,1.7)) brightness(var(--ambient-brightness,1.15)) contrast(1.08);
   will-change:transform,opacity;
 }
-/* "Live" breathing while the video plays, so the light never looks frozen between frames. */
-.ambient-glow.is-live .ambient-glow-canvas{animation:ambient-breathe 7s ease-in-out infinite}
-@keyframes ambient-breathe{
-  0%,100%{transform:scale(var(--ambient-scale,1)) translateZ(0);opacity:1}
-  50%{transform:scale(calc(var(--ambient-scale,1) * 1.05)) translateZ(0);opacity:.82}
+/* Constant, slow and steady motion: the light drifts in a gentle loop (≈20s per lap) with a
+   soft breath, so it always feels alive without distracting from the video. */
+.ambient-glow.is-ready .ambient-glow-canvas{animation:ambient-drift 20s linear infinite}
+@keyframes ambient-drift{
+  0%,100%{transform:scale(calc(var(--ambient-scale,1) * 1.03)) translate3d(1.6%,0,0);opacity:1}
+  12.5%{transform:scale(calc(var(--ambient-scale,1) * 1.035)) translate3d(1.13%,.85%,0);opacity:.97}
+  25%{transform:scale(calc(var(--ambient-scale,1) * 1.04)) translate3d(0,1.2%,0);opacity:.93}
+  37.5%{transform:scale(calc(var(--ambient-scale,1) * 1.045)) translate3d(-1.13%,.85%,0);opacity:.9}
+  50%{transform:scale(calc(var(--ambient-scale,1) * 1.05)) translate3d(-1.6%,0,0);opacity:.88}
+  62.5%{transform:scale(calc(var(--ambient-scale,1) * 1.045)) translate3d(-1.13%,-.85%,0);opacity:.9}
+  75%{transform:scale(calc(var(--ambient-scale,1) * 1.04)) translate3d(0,-1.2%,0);opacity:.93}
+  87.5%{transform:scale(calc(var(--ambient-scale,1) * 1.035)) translate3d(1.13%,-.85%,0);opacity:.97}
 }
 /* Prevent the bleed from creating horizontal page scroll on narrow screens
    (overflow-x: clip does not create a scroll container, so sticky headers keep working). */
 body{overflow-x:clip}
 @media(prefers-reduced-motion:reduce){
   .ambient-glow{transition:none}
-  .ambient-glow.is-live .ambient-glow-canvas{animation:none}
+  .ambient-glow.is-ready .ambient-glow-canvas{animation:none}
 }

@@ -65,4 +65,34 @@ for splash in RES.glob('drawable*/splash.png'):
     canvas.paste(rounded(logo(art), 0.18), ((w - art) // 2, (h - art) // 2), rounded(logo(art), 0.18))
     canvas.convert('RGB').save(splash)
     count += 1
+# Black launch screen everywhere: Android 12+ system splash (otherwise a white/light
+# background), the pre-12 splash window, and the window behind the WebView while it loads.
+styles = values / 'styles.xml'
+xml = styles.read_text()
+launch_items = ('        <item name="android:windowBackground">@android:color/black</item>\n'
+                '        <item name="windowSplashScreenBackground">@android:color/black</item>\n'
+                '        <item name="windowSplashScreenIconBackgroundColor">@android:color/black</item>\n'
+                '        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>\n'
+                '        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>\n')
+marker = '<item name="android:background">@drawable/splash</item>'
+if marker not in xml:
+    sys.exit('Unexpected styles.xml: launch theme not found')
+if 'windowSplashScreenBackground' not in xml:
+    xml = xml.replace(marker, marker + '\n' + launch_items.rstrip('\n'), 1)
+no_action = '<item name="android:background">@null</item>'
+if no_action in xml and 'android:windowBackground">@android:color/black</item>\n    </style>\n\n\n    <style name="AppTheme.NoActionBarLaunch"' not in xml:
+    xml = xml.replace(no_action, no_action + '\n        <item name="android:windowBackground">@android:color/black</item>', 1)
+styles.write_text(xml)
+v31 = RES / 'values-v31'; v31.mkdir(exist_ok=True)
+(v31 / 'styles.xml').write_text('''<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="android:background">@drawable/splash</item>
+''' + launch_items + '''        <item name="android:windowSplashScreenBackground">@android:color/black</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/black</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+    </style>
+</resources>
+''')
+
 print(f'Applied RykoCollection branding: icons for {len(DENSITIES)} densities, {count} splash images.')

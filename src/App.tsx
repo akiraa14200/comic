@@ -14,6 +14,7 @@ import { RichText } from './components/RichText';
 import { readPersisted, writePersisted } from './lib/persist';
 import { isAmbientEnabled, setAmbientEnabled } from './lib/ambient';
 import { VideoActionMenu, flushPendingReports } from './components/VideoActions';
+import { useAppBackNavigation, useBackLayer } from './lib/backNav';
 import { ToastHost, OfflineBanner, ShareButton, formatCountdown, useNow, showToast, readRecentSearches, pushRecentSearch, clearRecentSearches } from './components/Extras';
 import './components/extras.css';
 
@@ -55,6 +56,7 @@ function Header({ user, isAdmin, onSignOut }: { user: User | null; isAdmin: bool
   const navigate = useNavigate();
   const location = useLocation();
   useEffect(() => setOpen(false), [location.pathname]);
+  useBackLayer(open, () => setOpen(false));
   const submit = (event: FormEvent) => { event.preventDefault(); navigate(term.trim() ? `/search?q=${encodeURIComponent(term.trim())}` : '/search'); setOpen(false); };
   return <header className="topbar"><div className="nav-wrap">
     <Link to="/" className="brand"><img className="brand-mark brand-logo" src="/logo-192.png" alt="" width="31" height="31"/><span>RYKOCOLLECTION</span></Link>
@@ -1024,6 +1026,7 @@ function ScrollMemory({ scrollKey }: { scrollKey: string }) {
 }
 
 export default function App() {
+  useAppBackNavigation();
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {

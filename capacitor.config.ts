@@ -5,8 +5,10 @@ const config: CapacitorConfig = {
   appName: 'RykoCollection',
   webDir: 'dist',
   bundledWebRuntime: false,
+  backgroundColor: '#000000',
   android: {
-    allowMixedContent: false
+    allowMixedContent: false,
+    backgroundColor: '#000000'
   }
 };
 
