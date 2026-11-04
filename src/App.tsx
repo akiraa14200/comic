@@ -52,7 +52,7 @@ function Header({ user, isAdmin, onSignOut }: { user: User | null; isAdmin: bool
 function AnimeCard({ anime, onSave, saved }: { anime: Anime; onSave: (anime: Anime) => void; saved: boolean }) {
   return <article className="anime-card">
     <Link to={`/anime/${anime.id}`} className="poster-wrap">
-      <img src={imageOf(anime)} alt={titleOf(anime)} loading="lazy" decoding="async"/>
+      <img src={imageOf(anime) || '/icons/ryko.svg'} alt={titleOf(anime)} loading="lazy" decoding="async" onError={event => { event.currentTarget.onerror = null; event.currentTarget.src = '/icons/ryko.svg'; }}/>
       <span className="poster-format">{anime.format || 'ANIME'}</span>
       {anime.averageScore ? <span className="poster-score"><Star size={12} fill="currentColor"/> {(anime.averageScore / 10).toFixed(1)}</span> : null}
     </Link>
@@ -234,7 +234,7 @@ function DetailPage({ user }: { user: User | null }) {
       <div className="fallback-search-row"><input id="fallback-title" value={fallbackQuery} onChange={event=>setFallbackQuery(event.target.value)} placeholder="Enter anime or manga title…" minLength={2}/><button className="secondary-btn" type="submit" disabled={fallbackBusy}>{fallbackBusy?'Searching…':'Search'}</button></div>
       <small>Sources: MyAnimeList (Jikan), Kitsu and MangaDex for manga. AniDB search is included as an external reference.</small>
     </form>
-    {fallbackResults.length>0 && <div className="fallback-results">{fallbackResults.map(result=><button type="button" className="fallback-result" key={result.anime.id} onClick={()=>{setAnime(result.anime);setError('');setActiveTab('overview');}}><img src={imageOf(result.anime)||'/icons/ryko.svg'} alt="" loading="lazy"/><span><strong>{titleOf(result.anime)}</strong><small>{result.provider} · {result.anime.format||'Title'}</small></span><ChevronRight size={16}/></button>)}</div>}
+    {fallbackResults.length>0 && <div className="fallback-results">{fallbackResults.map(result=><button type="button" className="fallback-result" key={result.anime.id} onClick={()=>{setAnime(result.anime);setError('');setActiveTab('overview');}}><img src={imageOf(result.anime)||'/icons/ryko.svg'} alt="" loading="lazy" onError={event=>{event.currentTarget.onerror=null;event.currentTarget.src='/icons/ryko.svg';}}/><span><strong>{titleOf(result.anime)}</strong><small>{result.provider} · {result.anime.format||'Title'}</small></span><ChevronRight size={16}/></button>)}</div>}
   </div></main>;
 
   const isSaved = saved.some(a => a.id === anime.id);
@@ -259,7 +259,7 @@ function DetailPage({ user }: { user: User | null }) {
     <div className="detail-content">
       <Link to="/search" className="back-link"><ArrowLeft size={16}/> Back to explore</Link>
       <div className="detail-main">
-        <img className="detail-poster" src={imageOf(anime) || '/placeholder-poster.svg'} alt={titleOf(anime)} onError={event => { event.currentTarget.style.visibility = 'hidden'; }}/>
+        <img className="detail-poster" src={imageOf(anime) || '/icons/ryko.svg'} alt={titleOf(anime)} onError={event => { event.currentTarget.onerror = null; event.currentTarget.src = '/icons/ryko.svg'; }}/>
         <div className="detail-info">
           <span className="eyebrow">{anime.format || 'ANIME'} {anime.seasonYear ? `· ${anime.seasonYear}` : ''}</span>
           <h1>{titleOf(anime)}</h1>
