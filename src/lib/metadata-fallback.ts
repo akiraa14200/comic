@@ -24,10 +24,12 @@ function mapJikan(item: any, manga: boolean): Anime {
     siteUrl: item.url || (manga ? `https://myanimelist.net/manga/${item.mal_id}` : `https://myanimelist.net/anime/${item.mal_id}`),
     trailer: item.trailer?.youtube_id ? { id: item.trailer.youtube_id, site: 'youtube' } : undefined,
     countryOfOrigin: '',
-    source: 'MyAnimeList',
+    source: item.source || undefined,
     synonyms: item.title_synonyms || [],
     startDate: item.aired?.prop?.from || item.published?.prop?.from || undefined,
-    staff: { edges: [] },
+    staff: { edges: manga
+      ? [...(item.authors || []).map((person: any) => ({ role: 'Author', node: { name: { full: person.name } } })), ...(item.artists || []).map((person: any) => ({ role: 'Artist', node: { name: { full: person.name } } }))]
+      : (item.staff || []).map((person: any) => ({ role: (person.positions || []).join(', '), node: { name: { full: person.person?.name || person.name || '' } } })).filter((entry: any) => entry.node.name.full) },
     externalLinks: [
       { site: 'MyAnimeList', url: item.url || (manga ? `https://myanimelist.net/manga/${item.mal_id}` : `https://myanimelist.net/anime/${item.mal_id}`) },
       { site: 'AniDB search', url: `https://anidb.net/search?q=${encodeURIComponent(title)}` }
