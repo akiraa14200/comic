@@ -202,20 +202,24 @@ export async function getAniListMediaById(id: number, mediaType: 'ANIME' | 'MANG
   // Load the essential entry first. Optional fields are deliberately isolated
   // so one unsupported/temporarily failing field cannot break Anime or Manga.
   const data = await query<{ Media: Anime | null }>(
-    `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { ${fields} source synonyms startDate { year month day } } }`,
+    `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { ${fields} } }`,
     { id, type: mediaType },
     DETAIL_CACHE_TTL
   );
   const media = data.Media;
   if (!media) return null;
 
-  const [staffResult, linksResult, charactersResult] = await Promise.allSettled([
+  const [staffResult, linksResult, factsResult, charactersResult] = await Promise.allSettled([
     query<{ Media: Pick<Anime, 'staff'> | null }>(
       `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { staff(sort: RELEVANCE, perPage: 35) { edges { role node { name { full } } } } } }`,
       { id, type: mediaType }, DETAIL_CACHE_TTL
     ),
     query<{ Media: Pick<Anime, 'externalLinks'> | null }>(
       `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { externalLinks { url site type } } }`,
+      { id, type: mediaType }, DETAIL_CACHE_TTL
+    ),
+    query<{ Media: Pick<Anime, 'source' | 'synonyms' | 'startDate'> | null }>(
+      `query($id: Int!, $type: MediaType!) { Media(id: $id, type: $type) { source synonyms startDate { year month day } } }`,
       { id, type: mediaType }, DETAIL_CACHE_TTL
     ),
     getMediaCharacters(id, 1, mediaType)
@@ -226,6 +230,8 @@ export async function getAniListMediaById(id: number, mediaType: 'ANIME' | 'MANG
 
   if (linksResult.status === 'fulfilled') media.externalLinks = linksResult.value.Media?.externalLinks || [];
   else media.externalLinks = [];
+
+  if (factsResult.status === 'fulfilled' && factsResult.value.Media) Object.assign(media, factsResult.value.Media);
 
   if (charactersResult.status === 'fulfilled') media.characters = charactersResult.value;
   else media.characters = { pageInfo: { currentPage: 1, hasNextPage: false }, edges: [] };
