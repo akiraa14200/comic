@@ -198,7 +198,7 @@ function DetailPage({ user }: { user: User | null }) {
     setLoading(true); setError(''); setAnime(null); setActiveTab('overview'); setSelectedCharacter(null); setCharacterPage(1);
     const animeId = id || '';
     getAnime(animeId)
-      .then(data => { if (active) { setAnime(data); if (!data) setError('This entry was not found in AniList or the connected local catalogue. Search other metadata providers below.'); } })
+      .then(data => { if (active) { setAnime(data); if (!data) setError(' AniList returned no matching record for this entry ID. Check the entry link and try again.'); } })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime metadata.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
