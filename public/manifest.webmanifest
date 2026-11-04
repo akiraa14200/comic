@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "RykoCollection",
+  "short_name": "Ryko",
+  "description": "Discover anime, manga, manhwa and stories worth exploring.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#08090d",
+  "theme_color": "#08090d",
+  "categories": ["entertainment", "books"],
+  "icons": [
+    { "src": "/icons/ryko.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
