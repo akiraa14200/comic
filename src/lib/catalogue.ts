@@ -324,7 +324,7 @@ export async function searchAnime(search: string, page = 1, genre?: string, stat
   }
   return mapped;
 }
-const isMangaTitle = (format = '') => /manga|manhwa|manhua|webtoon|comic/i.test(format);
+const isMangaTitle = (format = '') => /manga|manhwa|manhua|webtoon|comic|novel|one[_ -]?shot/i.test(format);
 const emptyCharacters = (page = 1): NonNullable<Anime['characters']> => ({
   pageInfo: { currentPage: page, hasNextPage: false }, edges: []
 });
