@@ -55,15 +55,6 @@ const fields = `
   nextAiringEpisode { episode airingAt }
   trailer { id site }
 `;
-const mangaDetailFields = `
-  id type title { romaji english native } description(asHtml: false)
-  coverImage { extraLarge large color } bannerImage averageScore episodes chapters volumes
-  status seasonYear format genres countryOfOrigin siteUrl
-  studios(isMain: true) { nodes { name } } duration nextAiringEpisode { episode airingAt } trailer { id site }
-`;
-const animeDetailFields = `
-  ${fields}
-`;
 type AniListResponse<T> = { data?: T; errors?: { message?: string }[] };
 const memoryCache = new Map<string, { expires: number; value: unknown }>();
 const inFlightRequests = new Map<string, Promise<unknown>>();
@@ -217,7 +208,7 @@ export async function getAniListMediaById(id: number, mediaType: 'ANIME' | 'MANG
   // incorrectly inferred ANIME/MANGA card label cannot turn a real entry
   // into Media: null. The returned record supplies the authoritative type.
   const data = await query<{ Media: Anime | null }>(
-    `query($id: Int!) { Media(id: $id) { ${fields} chapters volumes type } }`,
+    `query($id: Int!) { Media(id: $id) { ${fields} } }`,
     { id },
     DETAIL_CACHE_TTL
   );
