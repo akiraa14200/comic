@@ -660,3 +660,18 @@ html.ryko-light .card-meta p,html.ryko-light .settings-row p,html.ryko-light .ab
 html.ryko-light .footer{border-color:#20223518;color:#555a70}
 html.ryko-light .footer .brand,html.ryko-light .empty-state h3,html.ryko-light .empty-state h2{color:#292b40}
 html.ryko-light .settings-note,html.ryko-light .settings-feedback{background:#f0effb;border-color:#dedbf7;color:#4c4772}
+
+.fallback-metadata-search{width:min(100%,520px);margin:24px auto 0;text-align:left;padding:18px;border:1px solid var(--line);border-radius:16px;background:#ffffff06}
+.fallback-metadata-search>label{display:block;font-size:13px;font-weight:700;margin-bottom:10px}
+.fallback-search-row{display:flex;gap:8px}
+.fallback-search-row input{min-width:0;flex:1;border:1px solid var(--line);border-radius:10px;background:#ffffff0a;color:inherit;padding:11px 12px;font:inherit;font-size:13px}
+.fallback-search-row button:disabled{opacity:.6}
+.fallback-metadata-search>small{display:block;margin-top:9px;color:var(--muted);font-size:10px;line-height:1.5}
+.fallback-results{width:min(100%,520px);margin:12px auto;display:grid;gap:8px}
+.fallback-result{width:100%;display:flex;align-items:center;gap:12px;padding:9px;border:1px solid var(--line);border-radius:12px;background:#ffffff08;color:inherit;text-align:left;cursor:pointer}
+.fallback-result img{width:42px;height:58px;object-fit:cover;border-radius:7px;background:#222}
+.fallback-result span{display:grid;gap:4px;flex:1;min-width:0}
+.fallback-result strong{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fallback-result small{font-size:10px;color:var(--muted)}
+html.ryko-light .fallback-metadata-search,html.ryko-light .fallback-result{background:#fff;border-color:#20223518}
+html.ryko-light .fallback-search-row input{background:#f7f7fb;color:#202235;border-color:#20223520}
