@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Share2, WifiOff } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { Share } from '@capacitor/share';
 
 /* ---------- Toast ---------- */
 export function showToast(message: string) {
@@ -54,13 +56,27 @@ export function formatCountdown(airingAtSeconds: number, now = Date.now()) {
 
 /* ---------- Share ---------- */
 export async function shareLink(title: string, url: string) {
+  // Android app: native share sheet (Android WebView has no Web Share API).
+  if (Capacitor.isNativePlatform()) {
+    try { await Share.share({ title, text: title, url, dialogTitle: 'Share' }); return; }
+    catch (error) { if (/cancel/i.test(String((error as Error)?.message || error))) return; }
+  }
   try {
     if (navigator.share) { await navigator.share({ title, text: title, url }); return; }
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') return;
   }
-  try { await navigator.clipboard.writeText(url); showToast('Link copied'); }
-  catch { showToast(url); }
+  if (await copyText(url)) showToast('Link copied');
+  else showToast(url);
+}
+export async function copyText(value: string) {
+  try { await navigator.clipboard.writeText(value); return true; } catch { /* fall back below */ }
+  try {
+    const area = Object.assign(document.createElement('textarea'), { value });
+    area.setAttribute('readonly', ''); area.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(area); area.select();
+    const ok = document.execCommand('copy'); area.remove(); return ok;
+  } catch { return false; }
 }
 export function ShareButton({ title, url, className = 'secondary-btn' }: { title: string; url: string; className?: string }) {
   return <button type="button" className={className} onClick={() => void shareLink(title, url)}><Share2 size={15}/> Share</button>;
