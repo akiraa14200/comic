@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft } from 'lucide-react';
 // The application UI and page components are defined below.
@@ -12,6 +12,19 @@ import { AdminWorkspace } from './components/AdminWorkspace';
 import './components/admin-workspace.css';
 
 type StoredProgress = { id: string; title: string; image: string; progress: number; updated: number };
+function useTabRefresh(path: string) {
+  const [refreshKey, setRefreshKey] = useState(0);
+  useEffect(() => {
+    const handleRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ path?: string }>).detail;
+      if (detail?.path === path) setRefreshKey(value => value + 1);
+    };
+    window.addEventListener('ryko:refresh-tab', handleRefresh);
+    return () => window.removeEventListener('ryko:refresh-tab', handleRefresh);
+  }, [path]);
+  return refreshKey;
+}
+
 const readStore = <T,>(key: string, fallback: T): T => {
   try { const value = localStorage.getItem(key); return value ? JSON.parse(value) as T : fallback; } catch { return fallback; }
 };
@@ -64,6 +77,7 @@ function useLibrary() {
 }
 
 function Home() {
+  const refreshKey = useTabRefresh('/');
   const [trending, setTrending] = useState<Anime[]>([]);
   const [popular, setPopular] = useState<Anime[]>([]);
   const [seasonal, setSeasonal] = useState<Anime[]>([]);
@@ -79,7 +93,7 @@ function Home() {
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime right now.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [refreshKey]);
   const [heroIndex, setHeroIndex] = useState(0);
   const featured = trending.slice(0, 5);
   const hero = featured[heroIndex] || trending[0];
@@ -112,6 +126,7 @@ function Home() {
 
 function SearchPage() {
   const location = useLocation();
+  const refreshKey = useTabRefresh('/search');
   const params = new URLSearchParams(location.search);
   const [term, setTerm] = useState(params.get('q') || '');
   const [genre, setGenre] = useState('');
@@ -135,7 +150,7 @@ function SearchPage() {
         .finally(() => { if (active) setBusy(false); });
     }, 450);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [term, genre, status, format]);
+  }, [term, genre, status, format, refreshKey]);
 
   const loadMore = async () => {
     if (loadingMore || !hasMore) return;
@@ -439,6 +454,7 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
 }
 
 function VideoPage() {
+  const refreshKey = useTabRefresh('/video');
   const [videos,setVideos]=useState<RelatedVideo[]>([]);
   const [page,setPage]=useState(1);
   const [hasMore,setHasMore]=useState(true);
@@ -460,7 +476,7 @@ function VideoPage() {
       if(active)setError(e instanceof Error?e.message:'Could not load videos.');
     }).finally(()=>{if(active)setLoading(false);});
     return()=>{active=false;};
-  },[]);
+  },[refreshKey]);
 
   const filtered=useMemo(()=>{
     const query=term.trim().toLowerCase();
@@ -579,7 +595,7 @@ function BottomNavigation() {
   ];
   return <nav className="bottom-navigation" aria-label="Main navigation">{links.map(item => {
     const active = item.to === '/' ? location.pathname === '/' : location.pathname === item.to;
-    return <Link key={item.to} to={item.to} className={active?'bottom-nav-item active':'bottom-nav-item'} aria-current={active?'page':undefined}>{item.icon}<span>{item.label}</span></Link>;
+    return <Link key={item.to} to={item.to} onClick={() => { if (active) window.dispatchEvent(new CustomEvent('ryko:refresh-tab', { detail: { path: item.to } })); }} className={active?'bottom-nav-item active':'bottom-nav-item'} aria-current={active?'page':undefined}>{item.icon}<span>{item.label}</span></Link>;
   })}</nav>;
 }
 
@@ -630,13 +646,26 @@ function PrivacyPage() {
 
 export default function App() {
   const location = useLocation();
+  const [visited, setVisited] = useState<string[]>(() => [location.pathname]);
+  const scrollPositions = useRef(new Map<string, number>());
+  const currentPath = useRef(location.pathname);
 
-  // Each main navigation route gets its own fresh scroll position.
-  // Reset both the window and document roots for mobile WebViews.
+  // Keep previously opened screens mounted so catalogue data and UI state are reused.
   useEffect(() => {
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
+    setVisited(old => old.includes(location.pathname) ? old : [...old, location.pathname]);
+  }, [location.pathname]);
+
+  // Store each tab's scroll position while the user scrolls.
+  useEffect(() => {
+    const savePosition = () => scrollPositions.current.set(currentPath.current, window.scrollY);
+    window.addEventListener('scroll', savePosition, { passive: true });
+    return () => window.removeEventListener('scroll', savePosition);
+  }, []);
+
+  useLayoutEffect(() => {
+    currentPath.current = location.pathname;
+    const savedPosition = scrollPositions.current.get(location.pathname) || 0;
+    requestAnimationFrame(() => window.scrollTo(0, savedPosition));
   }, [location.pathname]);
 
   const [user, setUser] = useState<User | null>(null);
@@ -676,5 +705,21 @@ export default function App() {
     return () => { active = false; };
   }, [user]);
   const signOut = () => { void supabase.auth.signOut(); };
-  return <><Header user={user} isAdmin={isAdmin} onSignOut={signOut}/><Routes><Route path="/" element={<Home/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/anime/:id" element={<DetailPage user={user}/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="/extensions" element={<ExtensionPage/>}/><Route path="/admin" element={<AdminWorkspace/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer></>;
+  const path = location.pathname;
+  const show = (route: string) => path === route;
+  const isDetail = path.startsWith('/anime/');
+  const isKnown = ['/', '/search', '/watchlist', '/video', '/account', '/privacy', '/extensions', '/admin'].includes(path) || isDetail;
+
+  return <><Header user={user} isAdmin={isAdmin} onSignOut={signOut}/>
+    {visited.includes('/') && <div style={{display:show('/')?'block':'none'}}><Home/></div>}
+    {visited.includes('/search') && <div style={{display:show('/search')?'block':'none'}}><SearchPage/></div>}
+    {isDetail && <div><DetailPage key={path} user={user}/></div>}
+    {visited.includes('/watchlist') && <div style={{display:show('/watchlist')?'block':'none'}}><WatchlistPage/></div>}
+    {visited.includes('/video') && <div style={{display:show('/video')?'block':'none'}}><VideoPage/></div>}
+    {visited.includes('/account') && <div style={{display:show('/account')?'block':'none'}}><AccountPage user={user}/></div>}
+    {visited.includes('/privacy') && <div style={{display:show('/privacy')?'block':'none'}}><PrivacyPage/></div>}
+    {visited.includes('/extensions') && <div style={{display:show('/extensions')?'block':'none'}}><ExtensionPage/></div>}
+    {visited.includes('/admin') && <div style={{display:show('/admin')?'block':'none'}}><AdminWorkspace/></div>}
+    {!isKnown && <main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}
+    <BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer></>;
 }
