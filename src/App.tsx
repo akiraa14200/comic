@@ -445,7 +445,7 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
       <div className="yt-thumbnail"><div className="yt-skeleton-thumb"/></div>
       <div className="yt-video-info"><span className="yt-skeleton-avatar"/><div className="yt-video-text"><span className="yt-skeleton-line"/><span className="yt-skeleton-line"/></div></div>
     </> : <>
-      <div className="yt-thumbnail">
+      <div className="yt-thumbnail" ref={thumbnailRef}>
         {playing&&embed&&<div className="yt-ambient-glow" style={{backgroundImage:thumbnail? `url("${thumbnail}")` : 'radial-gradient(ellipse at center, rgba(116,91,255,.7), rgba(15,15,25,0) 72%)'}} aria-hidden="true"/>}
         {playing&&embed?<iframe key={video.id} src={embed} title={video.videoTitle||video.titleName||'Ryko video'} loading="eager" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/>:
         <button className="yt-thumbnail-button" onClick={onPlay} aria-label={playing?'Close player':'Play video'}>
