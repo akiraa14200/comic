@@ -636,3 +636,27 @@ html.ryko-compact-layout .anime-grid{grid-template-columns:repeat(7,minmax(0,1fr
  .settings-group,.about-section{padding:17px}
  html.ryko-compact-layout .anime-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:13px 9px}
 }
+
+/* Settings controls and working compact layout */
+.settings-select,.settings-time{min-width:112px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#ffffff0b;color:inherit;font-size:12px}
+.settings-select option{background:#171923;color:#fff}
+.settings-note,.settings-feedback{margin:12px 0 0;padding:12px 14px;border-radius:11px;background:#ffffff08;border:1px solid var(--line);color:#aaa8b5;font-size:11px;line-height:1.7}
+.settings-feedback{color:#c8c0ff}
+html.ryko-compact-layout .anime-grid{grid-template-columns:repeat(7,minmax(0,1fr));gap:14px 10px}
+@media(max-width:1000px){html.ryko-compact-layout .anime-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:13px 9px}}
+@media(max-width:700px){html.ryko-compact-layout .anime-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 8px}}
+/* Light appearance */
+html.ryko-light{color-scheme:light;--bg:#f4f5fa;--panel:#fff;--card:#fff;--muted:#626579;--line:rgba(25,30,50,.13);color:#202235;background:#f4f5fa}
+html.ryko-light body{background:radial-gradient(ellipse at 50% -20%,rgba(130,116,220,.12),transparent 38%),var(--bg);color:#202235}
+html.ryko-light .topbar{background:rgba(248,249,253,.88);border-color:#20223518}
+html.ryko-light .nav-links a,html.ryko-light .nav-account span,html.ryko-light .card-title,html.ryko-light .section-head h2,html.ryko-light .settings-row strong,html.ryko-light .settings-group h2,html.ryko-light .about-section h2{color:#292b40}
+html.ryko-light .nav-search,html.ryko-light .large-search,html.ryko-light .genre-select,html.ryko-light .settings-group,html.ryko-light .about-section,html.ryko-light .privacy-info{background:#fff;color:#555a70;border-color:#20223518}
+html.ryko-light .nav-search input,html.ryko-light .large-search input,html.ryko-light .genre-select select,html.ryko-light .settings-select,html.ryko-light .settings-time{color:#202235}
+html.ryko-light .settings-select option{background:#fff;color:#202235}
+html.ryko-light .header-more-menu{background:rgba(255,255,255,.97);border-color:#20223520}
+html.ryko-light .header-more-menu a,html.ryko-light .about-links a strong{color:#292b40}
+html.ryko-light .poster-wrap{background:#e7e9f1;border-color:#20223512}
+html.ryko-light .card-meta p,html.ryko-light .settings-row p,html.ryko-light .about-section>p,html.ryko-light .fine-print{color:#6e7182}
+html.ryko-light .footer{border-color:#20223518;color:#555a70}
+html.ryko-light .footer .brand,html.ryko-light .empty-state h3,html.ryko-light .empty-state h2{color:#292b40}
+html.ryko-light .settings-note,html.ryko-light .settings-feedback{background:#f0effb;border-color:#dedbf7;color:#4c4772}
