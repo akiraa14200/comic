@@ -199,7 +199,7 @@ function DetailPage({ user }: { user: User | null }) {
     setLoading(true); setError(''); setAnime(null); setActiveTab('overview'); setSelectedCharacter(null); setCharacterPage(1);
     const animeId = id || '';
     getAnime(animeId)
-      .then(data => { if (active) { setAnime(data); if (!data) setError(' We couldn't retrieve this entry right now. Your connection or AniList may be temporarily unavailable. Please try again in a moment.'); } })
+      .then(data => { if (active) { setAnime(data); if (!data) setError("We could not retrieve this entry right now. Your connection or AniList may be temporarily unavailable. Please try again in a moment."); } })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime metadata.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
