@@ -45,7 +45,6 @@ export type Anime = {
   };
 };
 
-import { supabase } from './supabase';
 const endpoint = 'https://graphql.anilist.co';
 const fields = `
   id type title { romaji english native } description(asHtml: false)
@@ -115,23 +114,8 @@ async function queryUncached<T>(queryText: string, variables: Record<string, unk
     }
   }
 
-  // Fallback only: normal detail loading follows the proven direct request path.
-  try {
-    const { data: gatewayPayload, error: gatewayError } = await supabase.functions.invoke<AniListResponse<T>>('anilist-gateway', { body: { query: queryText, variables } });
-    if (!gatewayError && gatewayPayload?.data) {
-      memoryCache.set(cacheKey, { expires: Date.now() + cacheTtl, value: gatewayPayload.data });
-      if (memoryCache.size > 200) {
-        const oldestKey = memoryCache.keys().next().value;
-        if (oldestKey) memoryCache.delete(oldestKey);
-      }
-      return gatewayPayload.data;
-    }
-    const gatewayMessage = gatewayError?.message || gatewayPayload?.errors?.map(error => error.message).filter(Boolean).join(' · ') || 'Gateway returned an incomplete response.';
-    throw new Error(gatewayMessage);
-  } catch (gatewayError) {
-    const message = gatewayError instanceof Error ? gatewayError.message : String(gatewayError);
-    throw new Error(`AniList direct request failed: ${lastError.message}. Gateway fallback failed: ${message}`);
-  }
+  // Keep AniList transport independent from Supabase. Database or Edge Function outages must never affect provider requests.
+  throw lastError;
 }
 async function query<T>(queryText: string, variables: Record<string, unknown> = {}, cacheTtl = CACHE_TTL): Promise<T> {
   const key = JSON.stringify([queryText, variables]);
