@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Link, Route, Routes, useNavigate, useParams, useLocation, type Location } from 'react-router-dom';
 import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft } from 'lucide-react';
 // The application UI and page components are defined below.
 import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getPopularManga, getSeasonal, getTrending, getTrendingManga, getRelatedVideos, enrichVideoMetadata, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
@@ -10,6 +10,12 @@ import { ExtensionPage } from './components/ExtensionPage';
 import './components/extension-page.css';
 import { AdminWorkspace } from './components/AdminWorkspace';
 import './components/admin-workspace.css';
+import { useAmbientGlow } from './components/AmbientGlow';
+import { youtubeAmbientFrames } from './lib/ambient';
+
+/** True while the bottom-navigation tab that owns this subtree is the visible one. */
+const TabActiveContext = createContext(true);
+const useTabActive = () => useContext(TabActiveContext);
 
 type StoredProgress = { id: string; title: string; image: string; progress: number; updated: number };
 const readStore = <T,>(key: string, fallback: T): T => {
@@ -54,9 +60,30 @@ function useLibrary() {
   const [saved, setSaved] = useState<Anime[]>(() => readStore<Anime[]>('kairo-watchlist', []));
   const [history, setHistory] = useState<StoredProgress[]>(() => readStore<StoredProgress[]>('kairo-history', []));
   const [statuses, setStatuses] = useState<Record<string, 'Watching' | 'Plan to Watch' | 'Completed' | 'Waiting'>>(() => readStore('rykoc-library-status', {}));
-  useEffect(() => localStorage.setItem('kairo-watchlist', JSON.stringify(saved)), [saved]);
-  useEffect(() => localStorage.setItem('kairo-history', JSON.stringify(history)), [history]);
-  useEffect(() => localStorage.setItem('rykoc-library-status', JSON.stringify(statuses)), [statuses]);
+  // Several pages stay mounted at once (tab keep-alive), so each copy of this hook
+  // writes only real changes and picks up changes made by the others.
+  const persist = (key: string, value: unknown) => {
+    const next = JSON.stringify(value);
+    if (localStorage.getItem(key) === next) return;
+    localStorage.setItem(key, next);
+    window.dispatchEvent(new CustomEvent('rykoc-library-change', { detail: key }));
+  };
+  useEffect(() => persist('kairo-watchlist', saved), [saved]);
+  useEffect(() => persist('kairo-history', history), [history]);
+  useEffect(() => persist('rykoc-library-status', statuses), [statuses]);
+  const current = useRef({ saved, history, statuses });
+  current.current = { saved, history, statuses };
+  useEffect(() => {
+    const changed = (key: string, value: unknown) => { const raw = localStorage.getItem(key); return raw !== null && raw !== JSON.stringify(value); };
+    const sync = () => {
+      if (changed('kairo-watchlist', current.current.saved)) setSaved(readStore<Anime[]>('kairo-watchlist', []));
+      if (changed('kairo-history', current.current.history)) setHistory(readStore<StoredProgress[]>('kairo-history', []));
+      if (changed('rykoc-library-status', current.current.statuses)) setStatuses(readStore('rykoc-library-status', {}));
+    };
+    window.addEventListener('rykoc-library-change', sync);
+    window.addEventListener('storage', sync);
+    return () => { window.removeEventListener('rykoc-library-change', sync); window.removeEventListener('storage', sync); };
+  }, []);
   const toggle = (anime: Anime) => setSaved(old => old.some(item => item.id === anime.id) ? old.filter(item => item.id !== anime.id) : [anime, ...old]);
   const remember = (anime: Anime) => setHistory(old => [{ id: anime.id, title: titleOf(anime), image: imageOf(anime), progress: 0, updated: Date.now() }, ...old.filter(item => item.id !== anime.id)].slice(0, 20));
   const setLibraryStatus = (id: string, status: 'Watching' | 'Plan to Watch' | 'Completed' | 'Waiting') => setStatuses(old => ({ ...old, [id]: status }));
@@ -83,15 +110,16 @@ function Home() {
   const [heroIndex, setHeroIndex] = useState(0);
   const featured = trending.slice(0, 5);
   const hero = featured[heroIndex] || trending[0];
+  const tabActive = useTabActive();
   useEffect(() => {
-    if (featured.length < 2) return;
+    if (featured.length < 2 || !tabActive) return;
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         setHeroIndex(index => (index + 1) % featured.length);
       }
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [featured.length]);
+  }, [featured.length, tabActive]);
   return <main className="page-shell">
     {hero && <section className="hero" aria-label="Featured anime carousel">
       <img className="hero-banner-image" src={hero.bannerImage || imageOf(hero)} alt="" fetchPriority="high" decoding="async"/>
@@ -261,7 +289,7 @@ function DetailPage({ user }: { user: User | null }) {
         <div className="overview-description">{cleanDescription(anime.description) || 'No description is available for this entry yet.'}</div>
         <div className="overview-trailer">
           <div className="entry-section-heading"><span className="eyebrow">OFFICIAL PREVIEW</span><h2>Trailer</h2></div>
-          {trailerId ? <div className="entry-trailer-frame"><iframe src={`https://www.youtube-nocookie.com/embed/${trailerId}?rel=0`} title={`Trailer for ${titleOf(anime)}`} allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/></div> :
+          {trailerId ? <TrailerFrame trailerId={trailerId} title={`Trailer for ${titleOf(anime)}`}/> :
             <div className="entry-empty"><Youtube size={22}/><span>No supported trailer is listed for this entry.</span>{anime.siteUrl && <a href={anime.siteUrl} target="_blank" rel="noreferrer">Check entry sources <ExternalLink size={13}/></a>}</div>}
         </div>
       </section>}
@@ -333,6 +361,13 @@ function DetailPage({ user }: { user: User | null }) {
   </main>;
 }
 
+/** Same markup as before; only adds the decorative ambient glow behind it. */
+function TrailerFrame({ trailerId, title }: { trailerId: string; title: string }) {
+  const frameRef = useRef<HTMLDivElement>(null);
+  useAmbientGlow(frameRef, true, { frames: youtubeAmbientFrames(trailerId) });
+  return <div ref={frameRef} className="entry-trailer-frame"><iframe src={`https://www.youtube-nocookie.com/embed/${trailerId}?rel=0`} title={title} allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/></div>;
+}
+
 function WatchlistPage() {
   const { saved, toggle, statuses, setLibraryStatus } = useLibrary();
   const groups: Array<'Watching' | 'Plan to Watch' | 'Completed' | 'Waiting'> = ['Watching', 'Plan to Watch', 'Completed', 'Waiting'];
@@ -371,6 +406,18 @@ function videoEmbedUrl(video: RelatedVideo) {
     }
   } catch { return ''; }
   return '';
+}
+
+function youtubeIdOf(video: RelatedVideo) {
+  try {
+    const url = new URL(video.videoUrl);
+    const host = url.hostname.replace(/^www\./, '').replace(/^m\./, '').toLowerCase();
+    const parts = url.pathname.split('/').filter(Boolean);
+    let id: string | null = null;
+    if (host === 'youtu.be') id = parts[0] || null;
+    else if (host.endsWith('youtube.com') || host.endsWith('youtube-nocookie.com')) id = url.searchParams.get('v') || (['embed','shorts','live','v'].includes(parts[0]) ? parts[1] : null);
+    return id && /^[a-zA-Z0-9_-]{6,}$/.test(id) ? id : null;
+  } catch { return null; }
 }
 
 function videoThumbnail(video: RelatedVideo) {
@@ -415,12 +462,15 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
   }, []);
   const embed = videoEmbedUrl(video);
   const thumbnail = videoThumbnail(video);
+  const thumbRef = useRef<HTMLDivElement>(null);
+  const ambientFrames = useMemo(() => { const yt = youtubeAmbientFrames(youtubeIdOf(video)); return yt.length ? yt : [thumbnail].filter(Boolean); }, [video.videoUrl, thumbnail]);
+  useAmbientGlow(thumbRef, nearViewport && playing && !!embed, { frames: ambientFrames, assumePlaying: true });
   return <article ref={cardRef} className={`yt-video-card ${short?'yt-short-card':'yt-standard-card'}`}>
     {!nearViewport ? <>
       <div className="yt-thumbnail"><div className="yt-skeleton-thumb"/></div>
       <div className="yt-video-info"><span className="yt-skeleton-avatar"/><div className="yt-video-text"><span className="yt-skeleton-line"/><span className="yt-skeleton-line"/></div></div>
     </> : <>
-      <div className="yt-thumbnail">
+      <div ref={thumbRef} className="yt-thumbnail">
         {playing&&embed?<iframe key={video.id} src={embed} title={video.videoTitle||video.titleName||'Ryko video'} loading="eager" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="origin"/>:
         <button className="yt-thumbnail-button" onClick={onPlay} aria-label={playing?'Close player':'Play video'}>
           {thumbnail?<img src={thumbnail} alt={video.videoTitle||video.titleName||'Video thumbnail'} loading="lazy" decoding="async" fetchPriority="low" onError={e=>{e.currentTarget.onerror=null;e.currentTarget.src=video.titleCover||'/placeholder-poster.svg';}}/>:<span className="yt-thumbnail-fallback"/>}
@@ -449,6 +499,8 @@ function VideoPage() {
   const [term,setTerm]=useState('');
   const [format,setFormat]=useState<'all'|'video'|'short'>('all');
   const [category,setCategory]=useState('All');
+  const tabActive=useTabActive();
+  useEffect(()=>{if(!tabActive)setPlayingId(null);},[tabActive]);
 
   useEffect(()=>{
     let active=true;
@@ -628,6 +680,58 @@ function PrivacyPage() {
   </main>;
 }
 
+const TAB_PATHS = ['/', '/search', '/video', '/watchlist', '/account'] as const;
+type TabPath = typeof TAB_PATHS[number];
+const isTabPath = (path: string): path is TabPath => (TAB_PATHS as readonly string[]).includes(path);
+
+/**
+ * Bottom-navigation tabs stay mounted after their first visit and are only hidden
+ * when another page is shown. Each tab keeps its own data, loaded pages, filters and
+ * open state, and each one is rendered with the last location it saw, so a hidden
+ * tab never reacts to another tab's URL. Other routes (detail, admin, …) render normally.
+ */
+function TabbedRoutes({ user }: { user: User | null }) {
+  const location = useLocation();
+  const activeTab = isTabPath(location.pathname) ? location.pathname : null;
+  const tabLocations = useRef<Partial<Record<TabPath, Location>>>({});
+  if (activeTab) tabLocations.current[activeTab] = location;
+  const tabElement = (path: TabPath): ReactNode => path === '/' ? <Home/> : path === '/search' ? <SearchPage/> : path === '/video' ? <VideoPage/> : path === '/watchlist' ? <WatchlistPage/> : <AccountPage user={user}/>;
+  return <>
+    <ScrollMemory scrollKey={activeTab ?? location.key}/>
+    {TAB_PATHS.filter(path => tabLocations.current[path]).map(path => <div key={path} className="tab-keepalive" style={{display: path === activeTab ? 'contents' : 'none'}}>
+      <TabActiveContext.Provider value={path === activeTab}>
+        <Routes location={tabLocations.current[path]}><Route path={path} element={tabElement(path)}/></Routes>
+      </TabActiveContext.Provider>
+    </div>)}
+    {!activeTab && <Routes><Route path="/anime/:id" element={<DetailPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="/extensions" element={<ExtensionPage/>}/><Route path="/admin" element={<AdminWorkspace/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes>}
+  </>;
+}
+
+/**
+ * The window has a single scroll position shared by every page. Remember it per tab
+ * (and per history entry for other pages) and restore it instantly on switch, so one
+ * tab's scrolling never moves another and returning to a tab lands where you left it.
+ */
+function ScrollMemory({ scrollKey }: { scrollKey: string }) {
+  const positions = useRef(new Map<string, number>());
+  const currentKey = useRef(scrollKey);
+  useEffect(() => {
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    // Saved synchronously: reading scrollY inside a scroll event is cheap, and it must be
+    // stored before the next tab switch (after a switch the old value may already be clamped).
+    const save = () => { positions.current.set(currentKey.current, window.scrollY); };
+    window.addEventListener('scroll', save, { passive: true });
+    return () => window.removeEventListener('scroll', save);
+  }, []);
+  useLayoutEffect(() => {
+    if (currentKey.current === scrollKey) return;
+    currentKey.current = scrollKey;
+    // 'instant' bypasses the global `scroll-behavior: smooth`, so switching never animates.
+    window.scrollTo({ top: positions.current.get(scrollKey) ?? 0, left: 0, behavior: 'instant' as ScrollBehavior });
+  }, [scrollKey]);
+  return null;
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -666,5 +770,5 @@ export default function App() {
     return () => { active = false; };
   }, [user]);
   const signOut = () => { void supabase.auth.signOut(); };
-  return <><Header user={user} isAdmin={isAdmin} onSignOut={signOut}/><Routes><Route path="/" element={<Home/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/anime/:id" element={<DetailPage user={user}/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="/extensions" element={<ExtensionPage/>}/><Route path="/admin" element={<AdminWorkspace/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer></>;
+  return <><Header user={user} isAdmin={isAdmin} onSignOut={signOut}/><TabbedRoutes user={user}/><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer></>;
 }
