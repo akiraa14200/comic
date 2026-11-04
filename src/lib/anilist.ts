@@ -217,6 +217,7 @@ export async function getAniListMediaById(id: number, mediaType: 'ANIME' | 'MANG
   // incorrectly inferred ANIME/MANGA card label cannot turn a real entry
   // into Media: null. The returned record supplies the authoritative type.
   let media: Anime | null = null;
+  let primaryError: unknown = null;
   try {
     const data = await query<{ Media: Anime | null }>(
       `query($id: Int!) { Media(id: $id) { ${fields} } }`,
@@ -225,17 +226,46 @@ export async function getAniListMediaById(id: number, mediaType: 'ANIME' | 'MANG
     );
     media = data.Media || null;
   } catch (error) {
+    primaryError = error;
+  }
+
+  // A large selection can fail as a whole if AniList temporarily rejects one
+  // nested field. Retry with a deliberately small, stable selection so the
+  // detail page can still render its title, synopsis and artwork.
+  if (!media) {
+    try {
+      const data = await query<{ Media: Anime | null }>(
+        `query($id: Int!) { Media(id: $id) { id type title { romaji english native } description(asHtml: false) coverImage { extraLarge large color } bannerImage } }`,
+        { id },
+        DETAIL_CACHE_TTL
+      );
+      media = data.Media || null;
+    } catch (error) {
+      if (!primaryError) primaryError = error;
+    }
+  }
+
+  // Final API fallback: resolve the same unique ID through the paginated
+  // media connection. This is useful if the single-object resolver is flaky.
+  if (!media) {
+    try {
+      const data = await query<{ Page?: { media?: Anime[] } }>(
+        `query($id: Int!) { Page(perPage: 1) { media(id: $id) { id type title { romaji english native } description(asHtml: false) coverImage { extraLarge large color } bannerImage } } }`,
+        { id },
+        DETAIL_CACHE_TTL
+      );
+      media = data.Page?.media?.find(item => item?.id === id) || null;
+    } catch (error) {
+      if (!primaryError) primaryError = error;
+    }
+  }
+
+  if (!media) {
     // A catalogue card may already have loaded this exact record. Keep the
     // detail page usable from that verified response during a transient outage.
-    const cached = findCachedAniListMedia(id);
-    if (!cached) throw error;
-    media = cached;
-  }
-  if (!media) {
-    // AniList occasionally returns an empty detail response while its list
-    // endpoint has already supplied the same globally-unique media ID.
     media = findCachedAniListMedia(id);
   }
+  if (!media && primaryError) throw primaryError;
   if (!media) return null;
   media.description = media.description || '';
   const actualMediaType = media.type === 'MANGA' ? 'MANGA' : media.type === 'ANIME' ? 'ANIME' : mediaType;
