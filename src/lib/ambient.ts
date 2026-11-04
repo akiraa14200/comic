@@ -221,10 +221,28 @@ export function createAmbientGlow(options: AmbientOptions): AmbientHandle {
     };
     fadeRaf = requestAnimationFrame(step);
   };
+  // ----- YouTube player bridge (enablejsapi=1) ---------------------------
+  // The embed reports its real play state and position via postMessage. With it the
+  // glow follows the actual scene (scene thumbnails are chosen by playback position)
+  // and pauses/resumes exactly with the player. Without it we fall back to cycling.
+  let apiLive = false;
+  const sceneFor = (fraction: number) => {
+    if (images.length === 4) return fraction < 0.375 ? 1 : fraction < 0.625 ? 2 : 3; // mq1/mq2/mq3 ≈ 25/50/75%
+    return Math.min(images.length - 1, Math.max(0, Math.floor(fraction * images.length)));
+  };
+  const showScene = (index: number) => {
+    if (index === sceneIndex || !images[index]) return;
+    sceneIndex = index;
+    fadeTo(images[index]);
+  };
+
+  let lastTimeUpdate = 0;
   const scheduleScenes = () => {
+    if (apiLive && Date.now() - lastTimeUpdate < 6000) return; // real position drives scenes
     if (sceneTimer || images.length < 2) return;
     sceneTimer = window.setInterval(() => {
       if (!shouldRun()) return;
+      if (apiLive && Date.now() - lastTimeUpdate < 6000) return; // live position took over
       sceneIndex = (sceneIndex + 1) % images.length;
       fadeTo(images[sceneIndex]);
     }, frameInterval);
@@ -256,8 +274,61 @@ export function createAmbientGlow(options: AmbientOptions): AmbientHandle {
     // A cross-origin player gives no play events; the first click into it moves focus
     // to the iframe and blurs the window — treat that as "user started playback".
     on(window, 'blur', () => {
-      if (document.activeElement === media && !playing) { playing = true; update(); }
+      if (!apiLive && document.activeElement === media && !playing) { playing = true; update(); }
     });
+    if (/[?&]enablejsapi=1/.test(media.src)) {
+      const bridgeId = `rykoc-ambient-${Math.random().toString(36).slice(2)}`;
+      let handshakeTimer = 0, tries = 0, duration = 0, fellBack = false;
+      const send = (payload: Record<string, unknown>) => {
+        try { media.contentWindow?.postMessage(JSON.stringify({ ...payload, id: bridgeId, channel: 'widget' }), '*'); } catch { /* frame gone */ }
+      };
+      const handshake = () => {
+        window.clearInterval(handshakeTimer); tries = 0;
+        handshakeTimer = window.setInterval(() => {
+          if (apiLive || destroyed || ++tries > 20) { window.clearInterval(handshakeTimer); return; }
+          send({ event: 'listening' });
+          send({ event: 'command', func: 'addEventListener', args: ['onStateChange'] });
+          send({ event: 'command', func: 'addEventListener', args: ['onError'] });
+        }, 500);
+      };
+      const setState = (state: number) => {
+        // 1 playing, 3 buffering → keep live; 2 paused, 0 ended, 5 cued, -1 unstarted → idle
+        const next = state === 1 || state === 3;
+        if (next !== playing) { playing = next; update(); }
+      };
+      on(window, 'message', (event) => {
+        const e = event as MessageEvent;
+        if (e.source !== media.contentWindow || !/^https:\/\/([a-z0-9-]+\.)*youtube(-nocookie)?\.com$/.test(e.origin)) return;
+        let data: { event?: string; info?: any } | null = null;
+        try { data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch { return; }
+        if (!data || typeof data !== 'object') return;
+        if (!apiLive) { apiLive = true; window.clearInterval(handshakeTimer); }
+        if (data.event === 'onReady') { // (re)subscribe once the player can accept commands
+          send({ event: 'command', func: 'addEventListener', args: ['onStateChange'] });
+          send({ event: 'command', func: 'addEventListener', args: ['onError'] });
+        }
+        if (data.event === 'onStateChange' && typeof data.info === 'number') setState(data.info);
+        if (data.event === 'onError' && !fellBack) {
+          // Restore the plain, known-working embed if the API-enabled one reports an error.
+          fellBack = true; apiLive = false;
+          media.src = media.src.replace(/([?&])enablejsapi=1&?/, '$1').replace(/[?&]$/, '');
+          playing = !!options.assumePlaying; update();
+          return;
+        }
+        const info = data.info;
+        if (info && typeof info === 'object') {
+          if (typeof info.duration === 'number' && info.duration > 0) duration = info.duration;
+          if (typeof info.playerState === 'number') setState(info.playerState);
+          if (typeof info.currentTime === 'number' && duration > 0 && images.length > 1) {
+            if (info.currentTime > 0) lastTimeUpdate = Date.now();
+            showScene(sceneFor(info.currentTime / duration));
+          }
+        }
+      });
+      on(media, 'load', handshake);
+      handshake();
+      cleanups.push(() => window.clearInterval(handshakeTimer));
+    }
   }
   on(document, 'visibilitychange', () => { pageVisible = document.visibilityState !== 'hidden'; update(); });
   on(window, TOGGLE_EVENT, () => { enabled = isAmbientEnabled(); update(); });
